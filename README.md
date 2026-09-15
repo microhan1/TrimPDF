@@ -28,7 +28,7 @@ TrimPDF는 PDF를 창에 끌어다 놓기만 하면 페이지마다 위·아래�
 
 > 처음 실행할 때 「Windows의 PC 보호」 창이 뜨면 **추가 정보 → 실행**을 누르세요. 코드 서명 인증서가 없는 개인 제작 프로그램이라 나타나는 안내입니다.
 
-옵션 설명과 문제 해결은 [사용 설명서](TrimPDF_사용설명서.html)에 정리돼 있습니다.
+옵션 설명과 문제 해결은 [사용 설명서](TrimPDF_Manual.html)(한국어 · English · 中文)에 정리돼 있습니다.
 
 ### 주요 옵션
 
@@ -78,6 +78,7 @@ TrimPDF detects the actual content area on every page of a PDF, trims the top, b
 - Download `TrimPDF.exe` from [Releases](https://github.com/microhan1/TrimPDF/releases/latest), run it, and drop PDF files onto the window.
 - Text stays vector (selectable and searchable); files never leave your PC.
 - The interface is available in Korean, English and Chinese (Simplified).
+- User guide in Korean, English and Chinese: [TrimPDF_Manual.html](TrimPDF_Manual.html)
 
 ## 라이선스 / License
 
