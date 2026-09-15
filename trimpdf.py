@@ -101,6 +101,20 @@ def output_path_for(path):
     return f"{base}{OUTPUT_SUFFIX}{ext or '.pdf'}"
 
 
+def _raw_box(doc, xref, key):
+    """페이지(없으면 상위 Pages 트리)에 저장된 박스 숫자를 PDF 원래 좌표 그대로 읽는다. 없으면 None."""
+    for _ in range(32):
+        typ, val = doc.xref_get_key(xref, key)
+        if typ == "array":
+            x0, y0, x1, y1 = [float(n) for n in val.strip("[]").split()][:4]
+            return pymupdf.Rect(min(x0, x1), min(y0, y1), max(x0, x1), max(y0, y1))
+        typ, parent = doc.xref_get_key(xref, "Parent")
+        if typ != "xref":
+            return None
+        xref = int(parent.split()[0])
+    return None
+
+
 def _place_page(out, work, page, clip, size, scale_cap=None):
     """원본 page 의 clip 영역을 size 크기의 새 페이지 가운데에 비율을 유지해서 배치한다."""
     pw, ph = size
@@ -116,12 +130,18 @@ def _place_page(out, work, page, clip, size, scale_cap=None):
     # show_pdf_page 는 clip 을 원본의 '회전된' page.rect 와 교차시키기 때문에
     # 회전 + cropbox 가 있는 페이지에서 내용이 어긋나거나 잘린다.
     # 그래서 작업용 사본의 페이지를 cropbox=mediabox, rotation=0 으로 정규화해서 사용한다.
-    dx = page.cropbox.x0 - page.mediabox.x0
-    dy = page.cropbox.y0 - page.mediabox.y0
+    # PyMuPDF 의 page.mediabox 와 page.cropbox 는 세로축 기준이 서로 달라서, MediaBox 가 위아래로
+    # 옮겨진 페이지(펼침면을 나눈 스캔본 등)에서 어긋난다. 그래서 PDF 에 저장된 원래 숫자로 계산한다.
+    xref = work.page_xref(page.number)
+    media = _raw_box(work, xref, "MediaBox") or pymupdf.Rect(page.mediabox)
+    crop = _raw_box(work, xref, "CropBox") or media
+    if not (crop & media).is_empty:
+        crop = crop & media
+    dx = crop.x0 - media.x0      # 가로: 왼쪽 끝끼리의 차이
+    dy = media.y1 - crop.y1      # 세로: PDF 는 아래에서 위로 가는 좌표라 위쪽 끝끼리의 차이
     src_clip = view_to_unrotated(page, clip) + (dx, dy, dx, dy)
-    wp = work[page.number]
-    wp.set_cropbox(wp.mediabox)
-    wp.set_rotation(0)
+    work.xref_set_key(xref, "CropBox", f"[{media.x0:g} {media.y0:g} {media.x1:g} {media.y1:g}]")
+    work.xref_set_key(xref, "Rotate", "0")
     new_page.show_pdf_page(target, work, page.number, clip=src_clip, rotate=-page.rotation)
 
 
