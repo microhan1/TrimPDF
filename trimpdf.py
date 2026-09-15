@@ -30,13 +30,23 @@ BLOCK_FILL = 0.2          # 블록 안에서 어두운 점이 이 비율을 넘�
 BG_DELTA = 30             # 종이 배경보다 이만큼 어두워야 내용으로 봄
 EDGE_FRAC = 0.015         # 페이지 가장자리 이 범위에 붙어 있는
 EDGE_MAX_RUN = 0.03       # 이보다 얇은 띠는 스캔 그림자/테두리로 보고 무시
-STRIP_MAX = 0.30          # 스캐너 배경 띠·제본선 그림자를 한쪽에서 걷어낼 수 있는 최대 폭
+STRIP_MAX = 0.50          # 스캐너 배경 띠·제본선 그림자를 한쪽에서 걷어낼 수 있는 최대 폭
 STRIP_DARKER = 20         # 종이 바탕보다 이만큼 어두운 줄을 띠 후보로 봄
 STRIP_SMOOTH = 28         # 줄 안의 밝기 폭(15~65 백분위)이 이보다 좁으면 '고르게 이어진 띠'
-TRANS_MAX = 0.015         # 띠 끝에서 비뚤게 찍힌 반쯤 어두운 줄을 더 걷어낼 최대 폭
+TRANS_MAX = 0.05          # 띠 끝에서 비뚤게 찍힌 반쯤 어두운 줄을 더 걷어낼 최대 폭
 TRANS_RUN = 0.10          # 한 줄에 이 비율 이상 길게 이어진 어두운 선이면 테두리 조각
 CLUSTER_FILL = 0.6        # 블록 1개짜리 줄이라도 이웃과 합친 채움이 이 이상이면 작은 글자(쪽번호)
 EDGE_ZONE = 0.02          # 가장자리 이 범위 안의 작은 뭉치는 쪽번호로 인정하지 않음
+PAPER_FLAT = 0.45         # 바탕 밝기에 가까운 블록이 이 비율 이상이면 '종이 페이지'(여백을 잘라도 되는 페이지)
+FLAT_TOL = 12             # 블록 평균이 바탕 밝기에서 이 이내면 바탕으로 봄
+PAPER_MIN = 120           # 이보다 어두운 바탕은 종이로 보지 않음(어두운 표지·슬라이드)
+NOISE_K = 3.5             # 스캔 잡티가 심하면 바탕 편차의 이 배수만큼 기준을 더 어둡게
+WHITE_MIN = 0.10          # 종이 페이지가 아니고 흰 여백이 이보다 적으면 전면 사진·색면으로 보고 자르지 않음
+SCAN_COVER = 0.90         # 이미지 한 장이 페이지의 이 비율 이상을 덮으면 스캔 페이지(배경 띠 제거 대상)
+LINE_RUN = 0.25           # 이 비율 이상 길게 이어진 가로·세로 선은 끝까지 내용으로
+BACKOFF = 0.03            # 걷어낸 경계에 내용이 닿아 있으면 최대 이만큼, 글자가 이어지는 동안만 되돌려 포함
+INK_DARKER = 50           # 그림자 안에서 그 줄의 밝기보다 이만큼 어두우면 글자(잉크)
+INK_MIN = 0.004           # 한 줄에서 잉크 픽셀 비율이 이 이상이면 글자가 있는 줄
 OUTPUT_SUFFIX = "_TrimPDF"
 
 
@@ -60,12 +70,43 @@ def _content_span(mask, edge_start=None, edge_end=None):
     return runs[0][0], runs[-1][1]
 
 
-def _longest_run(mask):
-    """1차원 참/거짓 배열에서 가장 길게 이어진 참의 길이."""
-    if not mask.any():
+def _edge_run(mask):
+    """1차원 참/거짓 배열의 양 끝 중 한쪽에 붙어 이어진 참의 길이.
+    비뚤게 스캔된 테두리 조각은 줄 끝에 붙어 있고, 종이 안의 괘선은 끝에 붙어 있지 않다."""
+    n = mask.size
+    if n == 0:
         return 0
-    d = np.diff(np.concatenate(([0], mask.astype(np.int8), [0])))
-    return int((np.flatnonzero(d == -1) - np.flatnonzero(d == 1)).max())
+    if mask.all():
+        return n
+    return max(int(np.argmin(mask)), int(np.argmin(mask[::-1])))
+
+
+def _line_cover(grid, along_rows, min_len):
+    """길이 min_len 이상 이어진 선이 덮는 위치.
+    along_rows=True: 각 행의 가로선이 덮는 열 / False: 각 열의 세로선이 덮는 행."""
+    g = grid if along_rows else grid.T
+    cover = np.zeros(g.shape[1], bool)
+    for line in np.flatnonzero(g.sum(axis=1) >= min_len):
+        d = np.diff(np.concatenate(([0], g[line].astype(np.int8), [0])))
+        for s, e in zip(np.flatnonzero(d == 1), np.flatnonzero(d == -1)):
+            if e - s >= min_len:
+                cover[s:e] = True
+    return cover
+
+
+def _is_scan_page(page):
+    """이미지 한 장이 페이지 대부분을 덮으면 스캔 페이지로 본다. 스캐너 배경 띠는 스캔에만 있으므로,
+    벡터로 그린 머리띠·사이드바 같은 디자인 요소를 배경 띠로 착각해 잘라내지 않게 한다."""
+    try:
+        area = abs(page.rect.width * page.rect.height)
+        frames = (page.rect, page.rect * page.derotation_matrix)
+        for info in page.get_image_info():
+            bbox = pymupdf.Rect(info["bbox"])
+            if max((bbox & f).get_area() for f in frames) >= SCAN_COVER * area:
+                return True
+    except Exception:
+        return False
+    return False
 
 
 def _strip_side(gray, dark, bg, rows, from_end):
@@ -84,14 +125,31 @@ def _strip_side(gray, dark, bg, rows, from_end):
             break
     if k == 0:
         return 0
-    # 비뚤게 스캔돼 반쯤만 어두운 테두리 끝 줄도 조금 더 걷어낸다
+    # 비뚤게 스캔돼 반쯤만 어두운 테두리 끝 줄도 조금 더 걷어낸다 — 줄 끝에 붙은 어두운 구간만 인정
+    # (밝기만 보면 표지의 색 테두리 같은 디자인 요소까지 걷어내므로 쓰지 않는다)
     length = dark.shape[1] if rows else dark.shape[0]
     for i in order[k: k + max(1, int(n * TRANS_MAX))]:
         line = dark[i] if rows else dark[:, i]
-        if p50[i] < bg - STRIP_DARKER or _longest_run(line) >= TRANS_RUN * length:
+        if _edge_run(line) >= TRANS_RUN * length:
             k += 1
         else:
             break
+    return k
+
+
+def _ink_into_strip(gray, start, step, limit):
+    """걷어낸 구역 안으로 경계(start)부터 step 방향으로 한 줄씩 보며, 그 줄의 밝기(중앙값)보다
+    훨씬 어두운 픽셀(글자)이 있는 동안 몇 줄을 되살릴지 센다. gray 는 줄이 열이면 [rows, cols],
+    행이면 전치해서 넘긴다."""
+    n = gray.shape[1]
+    k = 0
+    x = start
+    while 0 <= x < n and k < limit:
+        col = gray[:, x]
+        if (col < np.median(col) - INK_DARKER).mean() < INK_MIN:
+            break
+        k += 1
+        x += step
     return k
 
 
@@ -113,16 +171,39 @@ def find_content_rect(page, threshold=235, dpi=DETECT_DPI):
     pix = page.get_pixmap(matrix=pymupdf.Matrix(zoom, zoom), colorspace=pymupdf.csGRAY, alpha=False)
     img = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.stride)[:, : pix.width]
 
-    # 스캔본은 종이 배경이 순백이 아니므로 페이지마다 배경 밝기를 추정해서 기준을 낮춘다.
-    # 배경이 종이 같지 않은(전면 사진/색면) 페이지는 원래 기준을 그대로 쓴다.
-    bg = float(np.percentile(img, 75))
-    cut = min(threshold, bg - BG_DELTA) if bg >= 200 else threshold
     H, W = img.shape
-    dark_all = img < cut
+    B = BLOCK
+    sx = page.rect.width / W
+    sy = page.rect.height / H
+    hb, wb = H // B, W // B
+    if hb == 0 or wb == 0:
+        return pymupdf.Rect(page.rect)
 
-    # 종이 페이지면 스캐너 배경 띠·제본선 그림자를 먼저 걷어낸다 (위아래 → 좌우 → 위아래 한 번 더)
+    # 바탕 판정: 블록 평균이 바탕 밝기에 가까운 블록이 대부분이면 '종이 페이지'.
+    # 밝기 수준이 아니라 고르게 깔린 정도로 보므로 누렇게 바랜 종이·색종이도 종이로 인식한다.
+    bg = float(np.percentile(img, 75))
+    tiles = img[: hb * B, : wb * B].reshape(hb, B, wb, B)
+    tile_mean = tiles.mean(axis=(1, 3))
+    flat = np.abs(tile_mean - bg) <= FLAT_TOL
+    # 스캐너 배경처럼 아주 어두운 블록은 종이 판정의 분모에서 뺀다 (스캐너보다 작은 종이)
+    counted = tile_mean >= 0.5 * bg
+    paper = bg >= PAPER_MIN and counted.any() and flat[counted].mean() >= PAPER_FLAT
+    white_share = float((tile_mean >= 245).mean())
+    if paper and (bg >= 200 or white_share < WHITE_MIN):
+        # 종이 바탕(흰색·누런색) 기준으로 어두운 부분을 내용으로 본다.
+        # 잡티가 심한 스캔은 바탕 편차만큼 기준을 더 어둡게 해서 잡티를 글자로 오인하지 않는다
+        sigma = float(tiles.transpose(0, 2, 1, 3)[flat].std()) if flat.any() else 0.0
+        cut = min(threshold, bg - max(BG_DELTA, NOISE_K * sigma))
+    else:
+        if not paper and white_share < WHITE_MIN:
+            return pymupdf.Rect(page.rect)     # 흰 여백이 없는 전면 사진·색면 페이지는 자르지 않는다
+        cut = threshold                        # 흰 여백이 있는 색면·디자인 페이지: 흰색이 아닌 곳이 내용
+    dark_all = img < cut
+    scan = _is_scan_page(page)
+
+    # 스캔한 종이 페이지면 스캐너 배경 띠·제본선 그림자를 먼저 걷어낸다 (위아래 → 좌우 → 위아래 한 번 더)
     x0, y0, x1, y1 = 0, 0, W, H
-    if bg >= 200:
+    if paper and scan:
         gray = img.astype(np.float32)
         mid = slice(W // 5, W - W // 5)
         y0 = _strip_side(gray[:, mid], dark_all[:, mid], bg, True, False)
@@ -133,30 +214,57 @@ def find_content_rect(page, threshold=235, dpi=DETECT_DPI):
         y1 = min(y1, H - _strip_side(gray[:, x0:x1], dark_all[:, x0:x1], bg, True, True))
 
     dark = dark_all[y0:y1, x0:x1]
-    h, w = dark.shape[0] // BLOCK, dark.shape[1] // BLOCK
+    h, w = dark.shape[0] // B, dark.shape[1] // B
     if h == 0 or w == 0:
         return None
-    fill = dark[: h * BLOCK, : w * BLOCK].reshape(h, BLOCK, w, BLOCK).mean(axis=(1, 3))
+    fill = dark[: h * B, : w * B].reshape(h, B, w, B).mean(axis=(1, 3))
     blocks = fill > BLOCK_FILL
-    marks = _small_mark_blocks(fill)
     zy, zx = max(2, int(h * EDGE_ZONE)), max(2, int(w * EDGE_ZONE))
+    marks = _small_mark_blocks(fill)
     marks[:zy, :] = False
     marks[-zy:, :] = False
     marks[:, :zx] = False
     marks[:, -zx:] = False
-    rows = (blocks.sum(axis=1) >= 2) | marks.any(axis=1)     # 작은 쪽번호·꼬리말은 세로 범위에만 반영
-    cols = blocks.sum(axis=0) >= 2
+    # 길게 이어진 가는 선(괘선·표 테두리·그래프 축)은 끝까지 내용으로 본다.
+    # 스캔 페이지는 종이 끝의 그림자 선을 괘선으로 오인하지 않게, 그 선과 나란한 가장자리 구역만 뺀다
+    # (가로선은 위아래 구역, 세로선은 좌우 구역). 가장자리까지 이어진 진짜 선은 그대로 살린다.
+    lines_h = fill > 0.1
+    lines_v = lines_h.copy()
+    if scan:
+        ly, lx = max(2, int(h * 2 * EDGE_ZONE)), max(2, int(w * 2 * EDGE_ZONE))
+        lines_h[:ly, :] = False
+        lines_h[-ly:, :] = False
+        lines_v[:, :lx] = False
+        lines_v[:, -lx:] = False
+
+    rows = (blocks.sum(axis=1) >= 2) | marks.any(axis=1) | _line_cover(lines_v, False, max(3, int(h * LINE_RUN)))
     # 띠를 걷어낸 쪽은 새 가장자리에 딱 붙은 조각만 버린다 (그 가까이 있는 쪽번호는 보존)
     ys = _content_span(rows, 1 if y0 > 0 else None, 1 if y1 < H else None)
+    if ys is None:
+        return None
+    cols = (blocks[ys[0]:ys[1]].sum(axis=0) >= 2) | _line_cover(lines_h[ys[0]:ys[1]], True, max(3, int(w * LINE_RUN)))
     xs = _content_span(cols, 1 if x0 > 0 else None, 1 if x1 < W else None)
-    if ys is None or xs is None:
+    if xs is None:
         return None
 
-    # 블록 경계에 걸친 옅은 글자(쪽번호 등)가 잘리지 않도록 한 블록씩 여유를 둔다
-    by0, by1 = max(0, ys[0] - 1) * BLOCK + y0, min(h, ys[1] + 1) * BLOCK + y0
-    bx0, bx1 = max(0, xs[0] - 1) * BLOCK + x0, min(w, xs[1] + 1) * BLOCK + x0
-    sx = page.rect.width / pix.width
-    sy = page.rect.height / pix.height
+    # 블록 경계에 걸친 옅은 글자(쪽번호 등)가 잘리지 않도록 한 블록씩 여유를 두고,
+    # 끝 블록까지 내용이면 블록으로 나누고 남은 자투리 픽셀까지 포함한다
+    by0 = max(0, ys[0] - 1) * B + y0
+    by1 = y1 if ys[1] >= h else min(h, ys[1] + 1) * B + y0
+    bx0 = max(0, xs[0] - 1) * B + x0
+    bx1 = x1 if xs[1] >= w else min(w, xs[1] + 1) * B + x0
+    # 걷어낸 경계에 내용이 닿아 있으면(그림자 안까지 들어온 글자) 글자가 이어지는 줄만큼 되돌려 포함.
+    # 글자가 없는 그림자는 되돌리지 않는다 (본문이 그림자 끝에 딱 붙은 경우)
+    if paper and scan:
+        gray = img.astype(np.float32)
+        if y0 > 0 and ys[0] == 0:
+            by0 = y0 - _ink_into_strip(gray[:, bx0:bx1].T, y0 - 1, -1, int(H * BACKOFF))
+        if y1 < H and ys[1] >= h:
+            by1 = y1 + _ink_into_strip(gray[:, bx0:bx1].T, y1, 1, int(H * BACKOFF))
+        if x0 > 0 and xs[0] == 0:
+            bx0 = x0 - _ink_into_strip(gray[by0:by1], x0 - 1, -1, int(W * BACKOFF))
+        if x1 < W and xs[1] >= w:
+            bx1 = x1 + _ink_into_strip(gray[by0:by1], x1, 1, int(W * BACKOFF))
     return pymupdf.Rect(bx0 * sx, by0 * sy, bx1 * sx, by1 * sy) & page.rect
 
 
@@ -177,6 +285,14 @@ def view_to_unrotated(page, rect):
 
 class PasswordProtectedError(ValueError):
     """암호가 걸린 PDF (화면에서 언어별 문구로 바꿔 보여준다)"""
+
+
+class PdfOpenError(ValueError):
+    """열 수 없는 파일 — 손상됐거나 PDF 가 아님"""
+
+
+class OutputSaveError(OSError):
+    """결과 파일을 저장하지 못함 — 같은 이름의 파일이 열려 있거나 쓰기 권한이 없음"""
 
 
 def output_path_for(path):
@@ -240,11 +356,35 @@ def process_pdf(path, fit_to_page=True, padding=5.0, threshold=235, side_ratio=0
     max_zoom          : 확대 배율 상한(0 이면 제한 없음). 내용이 작은 페이지가 과하게 커지는 것을 막는다
     uniform_size      : 확대 모드에서 모든 페이지를 같은 크기로 맞춘다(세로형/가로형은 각각 대표 크기)
     """
-    src = pymupdf.open(path)
-    if src.needs_pass:
-        raise PasswordProtectedError("PDF is password-protected")
-    work = pymupdf.open(path)
-    out = pymupdf.open()
+    padding = max(0.0, float(padding))          # 음수 여백은 내용을 잘라내므로 0 으로 제한
+    try:
+        src = pymupdf.open(path)
+    except Exception as e:
+        raise PdfOpenError(str(e)) from e
+    work = out = None
+    try:
+        if not src.is_pdf:
+            raise PdfOpenError("not a PDF document")
+        if src.needs_pass:
+            raise PasswordProtectedError("PDF is password-protected")
+        work = pymupdf.open(path)
+        out = pymupdf.open()
+        _build_output(src, work, out, fit_to_page, padding, threshold, side_ratio, max_zoom, uniform_size, progress)
+        dst = output_path_for(path)
+        try:
+            out.save(dst, garbage=3, deflate=True)
+        except Exception as e:
+            raise OutputSaveError(str(e)) from e
+        return dst
+    finally:
+        # 오류가 나도 원본·결과 파일을 붙잡고 있지 않도록 항상 닫는다
+        for d in (out, work, src):
+            if d is not None:
+                d.close()
+
+
+def _build_output(src, work, out, fit_to_page, padding, threshold, side_ratio, max_zoom, uniform_size, progress):
+    """원본 페이지들의 내용 영역을 잘라 out 문서에 새 페이지로 채운다."""
     total = src.page_count
     cap = max_zoom if fit_to_page and max_zoom and max_zoom > 0 else None
 
@@ -302,12 +442,7 @@ def process_pdf(path, fit_to_page=True, padding=5.0, threshold=235, side_ratio=0
         except Exception:
             pass
 
-    dst = output_path_for(path)
-    out.save(dst, garbage=3, deflate=True)
-    out.close()
-    work.close()
-    src.close()
-    return dst
+    return out
 
 
 # ---------------------------------------------------------------- 화면(GUI)
@@ -374,6 +509,8 @@ STRINGS = {
         "skipped": "PDF가 아니라서 건너뜀 · {name}",
         "bad_options": "옵션 값이 올바르지 않아 기본값으로 처리합니다.",
         "err_password": "{name} · 암호가 걸린 PDF라서 처리할 수 없습니다",
+        "err_open": "{name} · 파일을 열 수 없습니다 (손상됐거나 PDF가 아닙니다)",
+        "err_save": "{name} · 결과를 저장하지 못했습니다. 같은 이름의 결과 파일이 다른 프로그램에서 열려 있거나 폴더에 쓰기 권한이 없습니다",
         "dialog_title": "PDF 파일 선택",
         "filetype": "PDF 파일",
     },
@@ -417,6 +554,8 @@ STRINGS = {
         "skipped": "Skipped (not a PDF) · {name}",
         "bad_options": "Some option values were invalid, so the defaults were used.",
         "err_password": "{name} · Password-protected PDFs can't be processed",
+        "err_open": "{name} · Can't open the file (it's damaged or not a PDF)",
+        "err_save": "{name} · Couldn't save the result. A file with the same name may be open in another program, or the folder is read-only",
         "dialog_title": "Choose PDF files",
         "filetype": "PDF files",
     },
@@ -460,6 +599,8 @@ STRINGS = {
         "skipped": "已跳过（不是 PDF）· {name}",
         "bad_options": "部分选项值无效，已使用默认值。",
         "err_password": "{name} · 该 PDF 设有密码，无法处理",
+        "err_open": "{name} · 无法打开文件（文件已损坏或不是 PDF）",
+        "err_save": "{name} · 无法保存结果。同名文件可能正在其他程序中打开，或文件夹没有写入权限",
         "dialog_title": "选择 PDF 文件",
         "filetype": "PDF 文件",
     },
@@ -921,7 +1062,7 @@ class App:
         try:
             opts = dict(
                 fit_to_page=self.fit_var.get(),
-                padding=float(self.pad_var.get()),
+                padding=max(float(self.pad_var.get()), 0.0),
                 threshold=int(self.th_var.get()),
                 side_ratio=min(max(int(self.side_var.get()), 0), 100) / 100,
                 max_zoom=max(float(self.zoom_var.get()), 0.0),
@@ -946,6 +1087,10 @@ class App:
                 q.put(("log", ("ok", None, {"text": os.path.basename(dst)})))
             except PasswordProtectedError:
                 q.put(("log", ("err", "err_password", {"name": name})))
+            except PdfOpenError:
+                q.put(("log", ("err", "err_open", {"name": name})))
+            except OutputSaveError:
+                q.put(("log", ("err", "err_save", {"name": name})))
             except Exception as e:
                 q.put(("log", ("err", None, {"text": f"{name} · {e}"})))
         q.put(("done", None))
