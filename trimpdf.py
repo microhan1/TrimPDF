@@ -30,24 +30,81 @@ BLOCK_FILL = 0.2          # 블록 안에서 어두운 점이 이 비율을 넘�
 BG_DELTA = 30             # 종이 배경보다 이만큼 어두워야 내용으로 봄
 EDGE_FRAC = 0.015         # 페이지 가장자리 이 범위에 붙어 있는
 EDGE_MAX_RUN = 0.03       # 이보다 얇은 띠는 스캔 그림자/테두리로 보고 무시
+STRIP_MAX = 0.30          # 스캐너 배경 띠·제본선 그림자를 한쪽에서 걷어낼 수 있는 최대 폭
+STRIP_DARKER = 20         # 종이 바탕보다 이만큼 어두운 줄을 띠 후보로 봄
+STRIP_SMOOTH = 28         # 줄 안의 밝기 폭(15~65 백분위)이 이보다 좁으면 '고르게 이어진 띠'
+TRANS_MAX = 0.015         # 띠 끝에서 비뚤게 찍힌 반쯤 어두운 줄을 더 걷어낼 최대 폭
+TRANS_RUN = 0.10          # 한 줄에 이 비율 이상 길게 이어진 어두운 선이면 테두리 조각
+CLUSTER_FILL = 0.6        # 블록 1개짜리 줄이라도 이웃과 합친 채움이 이 이상이면 작은 글자(쪽번호)
+EDGE_ZONE = 0.02          # 가장자리 이 범위 안의 작은 뭉치는 쪽번호로 인정하지 않음
 OUTPUT_SUFFIX = "_TrimPDF"
 
 
-def _content_span(mask):
+def _content_span(mask, edge_start=None, edge_end=None):
     """행(또는 열) 단위 내용 여부 배열에서 [시작, 끝) 범위를 찾는다.
-    가장자리에 붙은 얇은 띠(스캔 그림자 등)는 본문과 떨어져 있으면 제외한다."""
+    가장자리에 붙은 얇은 띠(스캔 그림자 등)는 본문과 떨어져 있으면 제외한다.
+    edge_start/edge_end: 가장자리로 볼 블록 수 (None 이면 EDGE_FRAC 비율)."""
     n = mask.size
     edges = np.flatnonzero(np.diff(np.concatenate(([0], mask.astype(np.int8), [0]))))
     runs = list(zip(edges[::2], edges[1::2]))
     if not runs:
         return None
-    edge = max(1, int(n * EDGE_FRAC))
+    default = max(1, int(n * EDGE_FRAC))
+    es = default if edge_start is None else edge_start
+    ee = default if edge_end is None else edge_end
     thin = max(2, int(n * EDGE_MAX_RUN))
-    while len(runs) > 1 and runs[0][0] <= edge and runs[0][1] - runs[0][0] < thin:
+    while len(runs) > 1 and runs[0][0] <= es and runs[0][1] - runs[0][0] < thin:
         runs.pop(0)
-    while len(runs) > 1 and runs[-1][1] >= n - edge and runs[-1][1] - runs[-1][0] < thin:
+    while len(runs) > 1 and runs[-1][1] >= n - ee and runs[-1][1] - runs[-1][0] < thin:
         runs.pop()
     return runs[0][0], runs[-1][1]
+
+
+def _longest_run(mask):
+    """1차원 참/거짓 배열에서 가장 길게 이어진 참의 길이."""
+    if not mask.any():
+        return 0
+    d = np.diff(np.concatenate(([0], mask.astype(np.int8), [0])))
+    return int((np.flatnonzero(d == -1) - np.flatnonzero(d == 1)).max())
+
+
+def _strip_side(gray, dark, bg, rows, from_end):
+    """스캐너 배경 띠·제본선 그림자처럼 종이보다 어둡고 고르게 이어진 줄을 가장자리부터 센다.
+    rows=True 면 위/아래(행), False 면 왼/오른쪽(열). 걷어내다 종이가 안 나오면(색면·사진) 0."""
+    p15, p50, p65 = np.percentile(gray, [15, 50, 65], axis=1 if rows else 0)
+    n = len(p50)
+    order = list(range(n - 1, -1, -1)) if from_end else list(range(n))
+    limit, k = int(n * STRIP_MAX), 0
+    for i in order:
+        if p50[i] < bg - STRIP_DARKER and p65[i] - p15[i] < STRIP_SMOOTH:
+            k += 1
+            if k > limit:
+                return 0
+        else:
+            break
+    if k == 0:
+        return 0
+    # 비뚤게 스캔돼 반쯤만 어두운 테두리 끝 줄도 조금 더 걷어낸다
+    length = dark.shape[1] if rows else dark.shape[0]
+    for i in order[k: k + max(1, int(n * TRANS_MAX))]:
+        line = dark[i] if rows else dark[:, i]
+        if p50[i] < bg - STRIP_DARKER or _longest_run(line) >= TRANS_RUN * length:
+            k += 1
+        else:
+            break
+    return k
+
+
+def _small_mark_blocks(fill):
+    """블록 1개짜리라도 이웃 블록과 붙어 있고 합친 채움이 충분한 블록(작은 쪽번호 등). 흩어진 먼지는 제외."""
+    strong = fill > BLOCK_FILL
+    weak = np.where(fill > 0.1, fill, 0.0)
+    h, w = fill.shape
+    pad_sum = np.pad(weak, 1)
+    pad_cnt = np.pad((fill > 0.1).astype(np.int32), 1)
+    win_sum = sum(pad_sum[dy:dy + h, dx:dx + w] for dy in range(3) for dx in range(3))
+    win_cnt = sum(pad_cnt[dy:dy + h, dx:dx + w] for dy in range(3) for dx in range(3))
+    return strong & (win_cnt >= 2) & (win_sum >= CLUSTER_FILL)
 
 
 def find_content_rect(page, threshold=235, dpi=DETECT_DPI):
@@ -60,21 +117,47 @@ def find_content_rect(page, threshold=235, dpi=DETECT_DPI):
     # 배경이 종이 같지 않은(전면 사진/색면) 페이지는 원래 기준을 그대로 쓴다.
     bg = float(np.percentile(img, 75))
     cut = min(threshold, bg - BG_DELTA) if bg >= 200 else threshold
-    dark = img < cut
+    H, W = img.shape
+    dark_all = img < cut
 
-    h, w = pix.height // BLOCK, pix.width // BLOCK
-    blocks = dark[: h * BLOCK, : w * BLOCK].reshape(h, BLOCK, w, BLOCK).mean(axis=(1, 3)) > BLOCK_FILL
-    ys = _content_span(blocks.sum(axis=1) >= 2)
-    xs = _content_span(blocks.sum(axis=0) >= 2)
+    # 종이 페이지면 스캐너 배경 띠·제본선 그림자를 먼저 걷어낸다 (위아래 → 좌우 → 위아래 한 번 더)
+    x0, y0, x1, y1 = 0, 0, W, H
+    if bg >= 200:
+        gray = img.astype(np.float32)
+        mid = slice(W // 5, W - W // 5)
+        y0 = _strip_side(gray[:, mid], dark_all[:, mid], bg, True, False)
+        y1 = H - _strip_side(gray[:, mid], dark_all[:, mid], bg, True, True)
+        x0 = _strip_side(gray[y0:y1], dark_all[y0:y1], bg, False, False)
+        x1 = W - _strip_side(gray[y0:y1], dark_all[y0:y1], bg, False, True)
+        y0 = max(y0, _strip_side(gray[:, x0:x1], dark_all[:, x0:x1], bg, True, False))
+        y1 = min(y1, H - _strip_side(gray[:, x0:x1], dark_all[:, x0:x1], bg, True, True))
+
+    dark = dark_all[y0:y1, x0:x1]
+    h, w = dark.shape[0] // BLOCK, dark.shape[1] // BLOCK
+    if h == 0 or w == 0:
+        return None
+    fill = dark[: h * BLOCK, : w * BLOCK].reshape(h, BLOCK, w, BLOCK).mean(axis=(1, 3))
+    blocks = fill > BLOCK_FILL
+    marks = _small_mark_blocks(fill)
+    zy, zx = max(2, int(h * EDGE_ZONE)), max(2, int(w * EDGE_ZONE))
+    marks[:zy, :] = False
+    marks[-zy:, :] = False
+    marks[:, :zx] = False
+    marks[:, -zx:] = False
+    rows = (blocks.sum(axis=1) >= 2) | marks.any(axis=1)     # 작은 쪽번호·꼬리말은 세로 범위에만 반영
+    cols = blocks.sum(axis=0) >= 2
+    # 띠를 걷어낸 쪽은 새 가장자리에 딱 붙은 조각만 버린다 (그 가까이 있는 쪽번호는 보존)
+    ys = _content_span(rows, 1 if y0 > 0 else None, 1 if y1 < H else None)
+    xs = _content_span(cols, 1 if x0 > 0 else None, 1 if x1 < W else None)
     if ys is None or xs is None:
         return None
 
     # 블록 경계에 걸친 옅은 글자(쪽번호 등)가 잘리지 않도록 한 블록씩 여유를 둔다
-    y0, y1 = max(0, ys[0] - 1) * BLOCK, min(h, ys[1] + 1) * BLOCK
-    x0, x1 = max(0, xs[0] - 1) * BLOCK, min(w, xs[1] + 1) * BLOCK
+    by0, by1 = max(0, ys[0] - 1) * BLOCK + y0, min(h, ys[1] + 1) * BLOCK + y0
+    bx0, bx1 = max(0, xs[0] - 1) * BLOCK + x0, min(w, xs[1] + 1) * BLOCK + x0
     sx = page.rect.width / pix.width
     sy = page.rect.height / pix.height
-    return pymupdf.Rect(x0 * sx, y0 * sy, x1 * sx, y1 * sy) & page.rect
+    return pymupdf.Rect(bx0 * sx, by0 * sy, bx1 * sx, by1 * sy) & page.rect
 
 
 def view_to_unrotated(page, rect):
