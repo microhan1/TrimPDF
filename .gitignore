@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# PyInstaller 빌드 결과 — exe는 GitHub Releases에 올립니다
+build/
+dist/
+*.spec
+*.exe
+
+# 테스트용 PDF와 처리 결과
+*.pdf
+
+# 기타
+.claude/
+Thumbs.db
+desktop.ini
