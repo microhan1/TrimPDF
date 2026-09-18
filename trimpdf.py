@@ -511,6 +511,7 @@ STRINGS = {
         "err_password": "{name} · 암호가 걸린 PDF라서 처리할 수 없습니다",
         "err_open": "{name} · 파일을 열 수 없습니다 (손상됐거나 PDF가 아닙니다)",
         "err_save": "{name} · 결과를 저장하지 못했습니다. 같은 이름의 결과 파일이 다른 프로그램에서 열려 있거나 폴더에 쓰기 권한이 없습니다",
+        "err_unknown": "{name} · 처리하는 중에 알 수 없는 오류가 났습니다 ({error})",
         "dialog_title": "PDF 파일 선택",
         "filetype": "PDF 파일",
     },
@@ -556,6 +557,7 @@ STRINGS = {
         "err_password": "{name} · Password-protected PDFs can't be processed",
         "err_open": "{name} · Can't open the file (it's damaged or not a PDF)",
         "err_save": "{name} · Couldn't save the result. A file with the same name may be open in another program, or the folder is read-only",
+        "err_unknown": "{name} · An unexpected error occurred while processing ({error})",
         "dialog_title": "Choose PDF files",
         "filetype": "PDF files",
     },
@@ -601,6 +603,7 @@ STRINGS = {
         "err_password": "{name} · 该 PDF 设有密码，无法处理",
         "err_open": "{name} · 无法打开文件（文件已损坏或不是 PDF）",
         "err_save": "{name} · 无法保存结果。同名文件可能正在其他程序中打开，或文件夹没有写入权限",
+        "err_unknown": "{name} · 处理时发生未知错误（{error}）",
         "dialog_title": "选择 PDF 文件",
         "filetype": "PDF 文件",
     },
@@ -1092,7 +1095,7 @@ class App:
             except OutputSaveError:
                 q.put(("log", ("err", "err_save", {"name": name})))
             except Exception as e:
-                q.put(("log", ("err", None, {"text": f"{name} · {e}"})))
+                q.put(("log", ("err", "err_unknown", {"name": name, "error": str(e) or type(e).__name__})))
         q.put(("done", None))
 
     def poll(self):
