@@ -73,7 +73,7 @@ pyinstaller --noconfirm --onefile --windowed --name TrimPDF --collect-data tkint
 
 ## 함께 쓰는 서비스
 
-여백을 잘라 낸 책을 다 읽었다면 [책갈피 라이브러리](https://chaekgalpi.co.kr/?utm_source=github&utm_medium=referral&utm_campaign=tool_cta&utm_content=trimpdf)에 기록해 보세요. 읽은 책과 별점, 독서록을 남기는 웹 서비스입니다.
+여백을 잘라 낸 책을 다 읽었다면 [책갈피 라이브러리](https://chaekgalpi.co.kr/tools/trimpdf?utm_source=github&utm_medium=referral&utm_campaign=tool_cta&utm_content=trimpdf)에 기록해 보세요. 읽은 책과 별점, 독서록을 남기는 웹 서비스입니다.
 
 ## English
 
@@ -83,7 +83,7 @@ TrimPDF detects the actual content area on every page of a PDF, trims the top, b
 - Text stays vector (selectable and searchable); files never leave your PC.
 - The interface is available in Korean, English and Chinese (Simplified).
 - User guide in Korean, English and Chinese: [microhan1.github.io/TrimPDF/TrimPDF_Manual.html](https://microhan1.github.io/TrimPDF/TrimPDF_Manual.html#en)
-- Finished the book? Log it on [Chaekgalpi Library](https://chaekgalpi.co.kr/?utm_source=github&utm_medium=referral&utm_campaign=tool_cta&utm_content=trimpdf), a web service for keeping track of the books you read (Korean only).
+- Finished the book? Log it on [Chaekgalpi Library](https://chaekgalpi.co.kr/tools/trimpdf?utm_source=github&utm_medium=referral&utm_campaign=tool_cta&utm_content=trimpdf), a web service for keeping track of the books you read (Korean only).
 
 ## 라이선스 / License
 
