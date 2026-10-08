@@ -71,6 +71,10 @@ pyinstaller --noconfirm --onefile --windowed --name TrimPDF --collect-data tkint
 2. 확대 한도와 좌우 빈 공간 비율로 결과 페이지 크기를 정하고, 크기 통일이 켜져 있으면 대표 크기(중앙값)로 맞춥니다.
 3. 원본 페이지의 내용 영역을 새 페이지에 PDF 그대로 옮겨 배치합니다. 회전된 페이지와 가로형 페이지도 방향을 유지합니다.
 
+## 함께 쓰는 서비스
+
+여백을 잘라 낸 책을 다 읽었다면 [책갈피 라이브러리](https://chaekgalpi.co.kr/?utm_source=github&utm_medium=referral&utm_campaign=tool_cta&utm_content=trimpdf)에 기록해 보세요. 읽은 책과 별점, 독서록을 남기는 웹 서비스입니다.
+
 ## English
 
 TrimPDF detects the actual content area on every page of a PDF, trims the top, bottom, left and right margins, enlarges the content, and saves the result as `filename_TrimPDF.pdf`. It is handy for reading scanned books or wide-margin documents on tablets and e-readers.
@@ -79,6 +83,7 @@ TrimPDF detects the actual content area on every page of a PDF, trims the top, b
 - Text stays vector (selectable and searchable); files never leave your PC.
 - The interface is available in Korean, English and Chinese (Simplified).
 - User guide in Korean, English and Chinese: [microhan1.github.io/TrimPDF/TrimPDF_Manual.html](https://microhan1.github.io/TrimPDF/TrimPDF_Manual.html#en)
+- Finished the book? Log it on [Chaekgalpi Library](https://chaekgalpi.co.kr/?utm_source=github&utm_medium=referral&utm_campaign=tool_cta&utm_content=trimpdf), a web service for keeping track of the books you read (Korean only).
 
 ## 라이선스 / License
 
