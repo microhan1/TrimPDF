@@ -31,6 +31,15 @@ class UpdateInfo:
     latest: str
     current: str
     url: str
+    url_en: str | None = None   # 영어 판 툴 페이지. 서버가 주고 책갈피 사이트 주소일 때만
+
+
+def pick_url(info: UpdateInfo, lang: str) -> str:
+    """[업데이트]가 열 주소. 한국어 화면이면 url, 그 밖(영어·중국어)이면 영어 판이 있을 때만 그것.
+    언어는 도구 안에서만 고르고 서버에는 보내지 않는다."""
+    if lang != "ko" and isinstance(info.url_en, str) and info.url_en.startswith(SITE):
+        return info.url_en
+    return info.url
 
 
 def today() -> str:
@@ -89,7 +98,10 @@ def interpret(data: dict | None, version: str, skipped: str = "") -> UpdateInfo 
     latest = latest.strip()
     if latest == (skipped or "").strip():
         return None
-    return UpdateInfo(latest, version, url)
+    url_en = data.get("urlEn")
+    if not isinstance(url_en, str) or not url_en.startswith(SITE):
+        url_en = None                # 없거나 다른 곳을 가리키면 쓰지 않는다
+    return UpdateInfo(latest, version, url, url_en)
 
 
 def check_async(root, slug: str, version: str, prefs, on_result: Callable[[UpdateInfo | None, bool], None], *,

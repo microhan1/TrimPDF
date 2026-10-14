@@ -1091,9 +1091,10 @@ class App:
     def on_update_open(self):
         """책갈피 툴 페이지를 연다. 내려받기나 교체는 하지 않는다."""
         info = self.update_info
-        if info is not None and info.url.startswith(update_check.SITE):
+        url = update_check.pick_url(info, self.lang) if info is not None else ""
+        if url.startswith(update_check.SITE):
             try:
-                webbrowser.open(info.url)
+                webbrowser.open(url)
             except Exception:
                 pass
         self.update_info = None
