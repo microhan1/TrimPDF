@@ -95,7 +95,7 @@ TrimPDF detects the actual content area on every page of a PDF, trims the top, b
 - The interface is available in Korean, English and Chinese (Simplified).
 - **Check for updates:** to see whether a newer version exists, TrimPDF sends only the tool name and its version to the Chaekgalpi server (chaekgalpi.co.kr). Files are never sent, the check runs at most once a day, and you can turn it off with the checkbox at the top right. If a new version exists, a one-line notice appears at the bottom of the window; "Update" opens the Chaekgalpi tools page. TrimPDF never downloads or replaces itself.
 - User guide in Korean, English and Chinese: [microhan1.github.io/TrimPDF/TrimPDF_Manual.html](https://microhan1.github.io/TrimPDF/TrimPDF_Manual.html#en)
-- Finished the book? Log it on [Chaekgalpi Library](https://chaekgalpi.co.kr/tools/trimpdf?utm_source=github&utm_medium=referral&utm_campaign=tool_cta&utm_content=trimpdf), a web service for keeping track of the books you read (Korean only).
+- Finished the book? Log it on [Chaekgalpi Library](https://chaekgalpi.co.kr/en/tools/trimpdf?utm_source=github&utm_medium=referral&utm_campaign=tool_cta&utm_content=trimpdf), a web service for keeping track of the books you read (tools page in English; the reading-log service itself is in Korean).
 
 ## 라이선스 / License
 
