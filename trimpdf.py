@@ -13,10 +13,14 @@ import sys
 import threading
 import tkinter as tk
 import tkinter.font as tkfont
+import webbrowser
 from tkinter import filedialog, ttk
 
 import numpy as np
 import pymupdf
+
+import update_check
+from version import APP_VERSION, UPDATE_SLUG
 
 try:
     from tkinterdnd2 import DND_FILES, TkinterDnD
@@ -512,6 +516,12 @@ STRINGS = {
         "err_open": "{name} · 파일을 열 수 없습니다 (손상됐거나 PDF가 아닙니다)",
         "err_save": "{name} · 결과를 저장하지 못했습니다. 같은 이름의 결과 파일이 다른 프로그램에서 열려 있거나 폴더에 쓰기 권한이 없습니다",
         "err_unknown": "{name} · 처리하는 중에 알 수 없는 오류가 났습니다 ({error})",
+        "update_check": "새 버전 확인",
+        "update_check_tip": "프로그램을 켤 때 새 버전이 있는지 하루 한 번 확인합니다.\n"
+                            "책갈피 서버(chaekgalpi.co.kr)에 도구 이름과 버전만 보내고, 파일은 보내지 않습니다.",
+        "update_available": "새 버전이 나왔습니다: {latest} (현재 {current})",
+        "update_open": "업데이트",
+        "update_later": "다음에",
         "dialog_title": "PDF 파일 선택",
         "filetype": "PDF 파일",
     },
@@ -558,6 +568,12 @@ STRINGS = {
         "err_open": "{name} · Can't open the file (it's damaged or not a PDF)",
         "err_save": "{name} · Couldn't save the result. A file with the same name may be open in another program, or the folder is read-only",
         "err_unknown": "{name} · An unexpected error occurred while processing ({error})",
+        "update_check": "Check for updates",
+        "update_check_tip": "Once a day at start-up, checks whether a newer version exists.\n"
+                            "Only the tool name and version are sent to the Chaekgalpi server (chaekgalpi.co.kr), never your files.",
+        "update_available": "Version {latest} is available (current {current})",
+        "update_open": "Update",
+        "update_later": "Later",
         "dialog_title": "Choose PDF files",
         "filetype": "PDF files",
     },
@@ -604,6 +620,12 @@ STRINGS = {
         "err_open": "{name} · 无法打开文件（文件已损坏或不是 PDF）",
         "err_save": "{name} · 无法保存结果。同名文件可能正在其他程序中打开，或文件夹没有写入权限",
         "err_unknown": "{name} · 处理时发生未知错误（{error}）",
+        "update_check": "检查新版本",
+        "update_check_tip": "启动时每天检查一次是否有新版本。\n"
+                            "只会向服务器 chaekgalpi.co.kr 发送工具名称和版本，不会发送任何文件。",
+        "update_available": "有新版本 {latest}（当前 {current}）",
+        "update_open": "更新",
+        "update_later": "以后",
         "dialog_title": "选择 PDF 文件",
         "filetype": "PDF 文件",
     },
@@ -693,7 +715,7 @@ class Tooltip:
 
 
 class App:
-    def __init__(self, root, initial_files=()):
+    def __init__(self, root, initial_files=(), check_updates=True):
         self.root = root
         self.queue = queue.Queue()
         self.busy = False
@@ -714,14 +736,18 @@ class App:
         self.text_widgets = []          # (위젯, 문구 키) — 언어를 바꾸면 다시 채운다
         self.log_entries = []           # (종류, 문구 키 또는 None, 값)
         self.status_state = ("status_idle", {})
+        self.update_info = None         # 알림으로 보여 줄 새 버전 정보 (없으면 None)
+        self.update_var = tk.BooleanVar(value=update_check.enabled(self.settings))
 
-        root.title("TrimPDF")
+        root.title(f"TrimPDF {APP_VERSION}")
         root.geometry(f"{self.px(600)}x{self.px(760)}")
         root.minsize(self.px(540), self.px(680))
         root.configure(bg=COLORS["bg"])
         style = ttk.Style(root)
         for name in ("Card.TRadiobutton", "Card.TCheckbutton"):
             style.configure(name, background=COLORS["surface"], foreground=COLORS["ink"], font=self.fonts["body"])
+        style.configure("Head.TCheckbutton", background=COLORS["bg"], foreground=COLORS["muted"],
+                        font=self.fonts["small"])
 
         outer = tk.Frame(root, bg=COLORS["bg"])
         outer.pack(fill="both", expand=True, padx=self.px(20), pady=(self.px(16), self.px(18)))
@@ -730,11 +756,15 @@ class App:
         self.build_options(outer)
         self.build_progress(outer)
         self.build_results(outer)
+        self.build_update_notice(outer)
         self.apply_language()
 
         root.after(100, self.poll)
         if initial_files:
             self.add_files(initial_files)
+        # 하루 한 번, 창이 뜬 1.5초 뒤에 백그라운드 스레드에서 묻는다. 실패하면 조용히 넘어간다.
+        if check_updates:
+            update_check.check_async(root, UPDATE_SLUG, APP_VERSION, self.settings, self.on_update_result)
 
     def px(self, value):
         return int(round(value * self.s))
@@ -775,6 +805,7 @@ class App:
         self.draw_drop_zone()
         self.render_status()
         self.render_log()
+        self.render_update_notice()
 
     # ---- 화면 구성 ----
     def build_header(self, parent):
@@ -784,7 +815,14 @@ class App:
         row.columnconfigure(0, weight=1)
         tk.Label(row, text="TrimPDF", font=self.fonts["title"], bg=COLORS["bg"],
                  fg=COLORS["ink"]).grid(row=0, column=0, sticky="w")
-        self.build_language_switch(row).grid(row=0, column=1, sticky="e")
+        right = tk.Frame(row, bg=COLORS["bg"])
+        right.grid(row=0, column=1, sticky="e")
+        self.update_check_box = ttk.Checkbutton(right, style="Head.TCheckbutton", variable=self.update_var,
+                                                command=self.on_update_toggle)
+        self.update_check_box.pack(side="left", padx=(0, px(12)))
+        self.text_widgets.append((self.update_check_box, "update_check"))
+        Tooltip(self.update_check_box, lambda: self.tr("update_check_tip"), self.fonts["small"], self.s)
+        self.build_language_switch(right).pack(side="left")
         self.text_label(row, "subtitle", "small", bg=COLORS["bg"], fg=COLORS["muted"],
                         anchor="w").grid(row=1, column=0, columnspan=2, sticky="w")
 
@@ -999,6 +1037,7 @@ class App:
         frame = tk.Frame(parent, bg=COLORS["surface"], highlightbackground=COLORS["rule"],
                          highlightcolor=COLORS["rule"], highlightthickness=1)
         frame.pack(fill="both", expand=True)
+        self.results_frame = frame
         self.log = tk.Text(frame, height=5, wrap="word", relief="flat", bd=0, bg=COLORS["surface"],
                            fg=COLORS["ink"], font=self.fonts["file"], padx=px(12), pady=px(8),
                            spacing1=px(2), spacing3=px(2), cursor="arrow")
@@ -1009,6 +1048,68 @@ class App:
         for tag, color in (("ok", COLORS["ok"]), ("err", COLORS["err"]), ("skip", COLORS["muted"]),
                            ("empty", COLORS["faint"]), ("name", COLORS["ink"])):
             self.log.tag_configure(tag, foreground=color)
+
+    # ---- 새 버전 알림 (창 아래쪽 한 줄, 모달 아님) ----
+    def build_update_notice(self, parent):
+        px = self.px
+        self.notice = tk.Frame(parent, bg=COLORS["accent_soft"], highlightbackground=COLORS["accent"],
+                               highlightcolor=COLORS["accent"], highlightthickness=1)
+        self.notice_label = tk.Label(self.notice, font=self.fonts["small"], bg=COLORS["accent_soft"],
+                                     fg=COLORS["ink"], anchor="w")
+        self.notice_label.pack(side="left", padx=(px(12), px(8)), pady=px(6))
+        self.notice_later = tk.Label(self.notice, font=self.fonts["small"], bg=COLORS["accent_soft"],
+                                     fg=COLORS["muted"], cursor="hand2", takefocus=1, padx=px(8))
+        self.notice_open = tk.Label(self.notice, font=self.fonts["small_bold"], bg=COLORS["accent"],
+                                    fg="#FFFFFF", cursor="hand2", takefocus=1, padx=px(10), pady=px(2))
+        self.notice_later.pack(side="right", padx=(0, px(8)))
+        self.notice_open.pack(side="right")
+        for widget, action in ((self.notice_open, self.on_update_open), (self.notice_later, self.on_update_later)):
+            widget.bind("<Button-1>", lambda e, a=action: a())
+            widget.bind("<Return>", lambda e, a=action: a())
+            widget.bind("<space>", lambda e, a=action: a())
+        self.text_widgets += [(self.notice_open, "update_open"), (self.notice_later, "update_later")]
+
+    def render_update_notice(self):
+        """알림을 보이거나 숨긴다. 결과 목록이 줄어들 뿐, 위쪽 칸의 위치는 바뀌지 않는다."""
+        info = self.update_info
+        if info is None or not self.update_var.get():
+            self.notice.pack_forget()
+            return
+        self.notice_label.configure(text=self.tr("update_available", latest=info.latest, current=info.current))
+        if not self.notice.winfo_manager():
+            self.notice.pack(side="bottom", fill="x", pady=(self.px(10), 0), before=self.results_frame)
+
+    def on_update_result(self, info, answered):
+        """Tk 스레드에서 불린다. 날짜는 서버가 답했을 때만 적어서, 오프라인이면 다음 실행 때 다시 묻는다."""
+        if answered:
+            self.settings["update_check_last"] = update_check.today()
+            save_settings(self.settings)
+        if info is not None and self.update_var.get():
+            self.update_info = info
+            self.render_update_notice()
+
+    def on_update_open(self):
+        """책갈피 툴 페이지를 연다. 내려받기나 교체는 하지 않는다."""
+        info = self.update_info
+        if info is not None and info.url.startswith(update_check.SITE):
+            try:
+                webbrowser.open(info.url)
+            except Exception:
+                pass
+        self.update_info = None
+        self.render_update_notice()
+
+    def on_update_later(self):
+        if self.update_info is not None:
+            self.settings["update_check_skipped"] = self.update_info.latest    # 더 새 버전이 나오면 다시 알린다
+            save_settings(self.settings)
+        self.update_info = None
+        self.render_update_notice()
+
+    def on_update_toggle(self):
+        self.settings["update_check"] = bool(self.update_var.get())
+        save_settings(self.settings)
+        self.render_update_notice()      # 끄면 떠 있던 알림도 숨긴다
 
     def add_log(self, kind, key=None, **params):
         self.log_entries.append((kind, key, params))
@@ -1120,6 +1221,9 @@ class App:
 
 
 def main():
+    if sys.argv[1:] == ["--version"]:
+        print(f"TrimPDF {APP_VERSION}")
+        return
     enable_dpi_awareness()
     root = TkinterDnD.Tk() if HAS_DND else tk.Tk()
     App(root, initial_files=sys.argv[1:])

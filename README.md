@@ -15,7 +15,7 @@ TrimPDF는 PDF를 창에 끌어다 놓기만 하면 페이지마다 위·아래�
 - **글자는 선명하게:** 페이지를 이미지로 바꾸지 않아 텍스트 선택·검색과 목차가 유지됩니다.
 - **스캔본도 깔끔하게:** 누렇게 바랜 종이 배경, 먼지, 가장자리 그림자를 무시하고 실제 내용만 찾습니다.
 - **읽기 편한 결과:** 모든 페이지 크기를 통일하고, 그림 한 장뿐인 페이지가 지나치게 커지지 않게 확대를 제한합니다.
-- **내 PC에서만 처리:** 파일을 인터넷에 올리지 않습니다. 쪽수나 파일 크기 제한도 없습니다.
+- **내 PC에서만 처리:** 파일을 인터넷에 올리지 않습니다(새 버전 확인만 예외, 끌 수 있음). 쪽수나 파일 크기 제한도 없습니다.
 - **한국어 · English · 中文** 화면을 지원합니다.
 
 <img src="docs/images/screenshot_ko.png" alt="TrimPDF 프로그램 화면" width="420">
@@ -45,7 +45,18 @@ TrimPDF는 PDF를 창에 끌어다 놓기만 하면 페이지마다 위·아래�
 
 - 원본 PDF의 링크, 메모·주석, 입력 양식은 결과 파일에 옮겨지지 않습니다.
 - 암호가 걸린 PDF는 처리할 수 없습니다.
-- 언어 선택은 `%APPDATA%\TrimPDF\settings.json`에 저장됩니다.
+- 새 버전을 자동으로 내려받거나 바꾸지 않습니다.
+- 언어와 「새 버전 확인」 선택은 `%APPDATA%\TrimPDF\settings.json`에 저장됩니다.
+
+## 새 버전 확인
+
+실행할 때 새 버전이 있는지 확인하려고 도구 이름과 버전만 책갈피 서버(chaekgalpi.co.kr)에 보냅니다. 파일은 보내지 않고, 하루 한 번만 확인하며, 설정에서 끌 수 있습니다.
+
+새 버전이 있으면 창 아래쪽에 한 줄 안내가 나옵니다. 「업데이트」를 누르면 책갈피 툴 페이지가 열리고, 「다음에」를 누르면 그 버전은 다시 알리지 않습니다. 인터넷에 연결되어 있지 않거나 서버가 답하지 않으면 아무 표시 없이 넘어갑니다. 끄려면 오른쪽 위 「새 버전 확인」 체크를 해제하세요.
+
+<img src="docs/images/update_notice.png" alt="새 버전 안내가 나온 TrimPDF 화면" width="420">
+
+*가짜 응답으로 띄운 예시 화면입니다. 실제 서버의 답이 아닙니다.*
 
 ## 소스에서 실행하기
 
@@ -80,8 +91,9 @@ pyinstaller --noconfirm --onefile --windowed --name TrimPDF --collect-data tkint
 TrimPDF detects the actual content area on every page of a PDF, trims the top, bottom, left and right margins, enlarges the content, and saves the result as `filename_TrimPDF.pdf`. It is handy for reading scanned books or wide-margin documents on tablets and e-readers.
 
 - Download `TrimPDF.exe` from [Releases](https://github.com/microhan1/TrimPDF/releases/latest), run it, and drop PDF files onto the window.
-- Text stays vector (selectable and searchable); files never leave your PC.
+- Text stays vector (selectable and searchable); files never leave your PC (the only exception is the update check described below, which can be turned off).
 - The interface is available in Korean, English and Chinese (Simplified).
+- **Check for updates:** to see whether a newer version exists, TrimPDF sends only the tool name and its version to the Chaekgalpi server (chaekgalpi.co.kr). Files are never sent, the check runs at most once a day, and you can turn it off with the checkbox at the top right. If a new version exists, a one-line notice appears at the bottom of the window; "Update" opens the Chaekgalpi tools page. TrimPDF never downloads or replaces itself.
 - User guide in Korean, English and Chinese: [microhan1.github.io/TrimPDF/TrimPDF_Manual.html](https://microhan1.github.io/TrimPDF/TrimPDF_Manual.html#en)
 - Finished the book? Log it on [Chaekgalpi Library](https://chaekgalpi.co.kr/tools/trimpdf?utm_source=github&utm_medium=referral&utm_campaign=tool_cta&utm_content=trimpdf), a web service for keeping track of the books you read (Korean only).
 
