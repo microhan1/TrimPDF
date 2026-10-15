@@ -9,6 +9,7 @@ import ctypes
 import json
 import os
 import queue
+import subprocess
 import sys
 import threading
 import tkinter as tk
@@ -52,6 +53,8 @@ BACKOFF = 0.03            # 걷어낸 경계에 내용이 닿아 있으면 최�
 INK_DARKER = 50           # 그림자 안에서 그 줄의 밝기보다 이만큼 어두우면 글자(잉크)
 INK_MIN = 0.004           # 한 줄에서 잉크 픽셀 비율이 이 이상이면 글자가 있는 줄
 OUTPUT_SUFFIX = "_TrimPDF"
+MAX_PIXELS = 12_000_000   # 판별용 그림의 픽셀 상한. 포스터·도면처럼 아주 큰 쪽은 해상도를 낮춰 메모리를 지킨다
+                          # (A4 는 100dpi 에서 약 100만 픽셀이라 보통 쪽은 영향이 없다)
 
 
 def _content_span(mask, edge_start=None, edge_end=None):
@@ -172,6 +175,9 @@ def _small_mark_blocks(fill):
 def find_content_rect(page, threshold=235, dpi=DETECT_DPI):
     """페이지를 렌더링해서 내용이 있는 영역을 page.rect 좌표(pt)로 돌려준다. 빈 페이지면 None."""
     zoom = dpi / 72
+    area_pt = abs(page.rect.width * page.rect.height)
+    if area_pt * zoom * zoom > MAX_PIXELS:
+        zoom = (MAX_PIXELS / area_pt) ** 0.5      # 아주 큰 쪽: 픽셀 수가 상한을 넘지 않게 해상도를 낮춘다
     pix = page.get_pixmap(matrix=pymupdf.Matrix(zoom, zoom), colorspace=pymupdf.csGRAY, alpha=False)
     img = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.stride)[:, : pix.width]
 
@@ -295,6 +301,10 @@ class PdfOpenError(ValueError):
     """열 수 없는 파일 — 손상됐거나 PDF 가 아님"""
 
 
+class Cancelled(Exception):
+    """사용자가 「취소」를 눌렀다. 진행률 콜백에서 던져 처리를 쪽 단위로 멈추고, 결과는 저장하지 않는다."""
+
+
 class OutputSaveError(OSError):
     """결과 파일을 저장하지 못함 — 같은 이름의 파일이 열려 있거나 쓰기 권한이 없음"""
 
@@ -302,6 +312,52 @@ class OutputSaveError(OSError):
 def output_path_for(path):
     base, ext = os.path.splitext(path)
     return f"{base}{OUTPUT_SUFFIX}{ext or '.pdf'}"
+
+
+def unique_output_path(path):
+    """결과를 저장할 이름. 이미 같은 이름의 파일(또는 폴더)이 있으면 덮어쓰지 않고 (2), (3)… 을 붙인다."""
+    first = output_path_for(path)
+    if not os.path.lexists(first):
+        return first
+    base, ext = os.path.splitext(first)
+    for n in range(2, 10000):
+        candidate = f"{base}({n}){ext}"
+        if not os.path.lexists(candidate):
+            return candidate
+    raise OutputSaveError("too many results with the same name")
+
+
+def _save_new_file(out, path, attempts=5):
+    """결과를 같은 폴더의 임시 파일에 끝까지 쓴 뒤 새 이름으로 옮긴다. 저장 도중 프로그램이 꺼져도
+    잘린 결과 파일이 남지 않고, 그 사이 같은 이름이 생겨도 덮어쓰지 않는다(윈도우의 rename 은 대상이 있으면 실패)."""
+    import tempfile
+    folder = os.path.dirname(os.path.abspath(path))
+    try:
+        fd, tmp = tempfile.mkstemp(prefix=os.path.basename(output_path_for(path)) + ".", suffix=".part", dir=folder)
+        os.close(fd)
+    except OSError as e:
+        raise OutputSaveError(str(e)) from e
+    try:
+        try:
+            out.save(tmp, garbage=3, deflate=True)
+        except Exception as e:
+            raise OutputSaveError(str(e)) from e
+        for _ in range(attempts):
+            dst = unique_output_path(path)
+            try:
+                os.rename(tmp, dst)
+                return dst
+            except FileExistsError:
+                continue                                 # 그 사이 같은 이름이 생겼다: 다음 번호로
+            except OSError as e:
+                raise OutputSaveError(str(e)) from e
+        raise OutputSaveError("could not find a free name for the result")
+    finally:
+        if os.path.exists(tmp):
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
 
 
 def _raw_box(doc, xref, key):
@@ -374,17 +430,22 @@ def process_pdf(path, fit_to_page=True, padding=5.0, threshold=235, side_ratio=0
         work = pymupdf.open(path)
         out = pymupdf.open()
         _build_output(src, work, out, fit_to_page, padding, threshold, side_ratio, max_zoom, uniform_size, progress)
-        dst = output_path_for(path)
-        try:
-            out.save(dst, garbage=3, deflate=True)
-        except Exception as e:
-            raise OutputSaveError(str(e)) from e
-        return dst
+        return _save_new_file(out, path)
     finally:
         # 오류가 나도 원본·결과 파일을 붙잡고 있지 않도록 항상 닫는다
         for d in (out, work, src):
             if d is not None:
                 d.close()
+        release_cache()
+
+
+def release_cache():
+    """MuPDF 는 글꼴·이미지를 캐시에 약 256MB 까지 담아 두고 일이 끝나도 들고 있다.
+    파일 하나를 마칠 때·미리보기를 닫을 때 비워서 메모리를 돌려준다(결과에는 영향이 없다)."""
+    try:
+        pymupdf.TOOLS.store_shrink(100)
+    except Exception:
+        pass
 
 
 def _build_output(src, work, out, fit_to_page, padding, threshold, side_ratio, max_zoom, uniform_size, progress):
@@ -516,6 +577,22 @@ STRINGS = {
         "err_open": "{name} · 파일을 열 수 없습니다 (손상됐거나 PDF가 아닙니다)",
         "err_save": "{name} · 결과를 저장하지 못했습니다. 같은 이름의 결과 파일이 다른 프로그램에서 열려 있거나 폴더에 쓰기 권한이 없습니다",
         "err_unknown": "{name} · 처리하는 중에 알 수 없는 오류가 났습니다 ({error})",
+        "status_closing": "처리 중인 파일을 마치면 닫습니다 · 바로 닫으려면 닫기를 한 번 더 누르세요",
+        "status_cancelling": "취소하는 중…",
+        "status_cancelled": "취소했습니다",
+        "cancel": "취소",
+        "cancelled": "{name} · 취소했습니다 (결과 파일을 만들지 않았습니다)",
+        "open_folder": "폴더 열기",
+        "preview": "미리보기…",
+        "preview_dialog": "미리 볼 PDF 선택",
+        "preview_title": "미리보기 · {name}",
+        "preview_page": "{n} / {total}쪽",
+        "preview_prev": "◀ 이전",
+        "preview_next": "다음 ▶",
+        "preview_cut": "빨간 상자 바깥이 잘립니다 · 가로 {w}% · 세로 {h}% 줄어듭니다",
+        "preview_none": "잘라낼 여백이 없습니다",
+        "preview_blank": "빈 쪽이라 그대로 둡니다",
+        "preview_process": "이 설정으로 처리",
         "update_check": "새 버전 확인",
         "update_check_tip": "프로그램을 켤 때 새 버전이 있는지 하루 한 번 확인합니다.\n"
                             "책갈피 서버(chaekgalpi.co.kr)에 도구 이름과 버전만 보내고, 파일은 보내지 않습니다.",
@@ -568,6 +645,22 @@ STRINGS = {
         "err_open": "{name} · Can't open the file (it's damaged or not a PDF)",
         "err_save": "{name} · Couldn't save the result. A file with the same name may be open in another program, or the folder is read-only",
         "err_unknown": "{name} · An unexpected error occurred while processing ({error})",
+        "status_closing": "Closing once the current file is done · Close again to quit now",
+        "status_cancelling": "Cancelling…",
+        "status_cancelled": "Cancelled",
+        "cancel": "Cancel",
+        "cancelled": "{name} · Cancelled (no result file was made)",
+        "open_folder": "Show in folder",
+        "preview": "Preview…",
+        "preview_dialog": "Choose a PDF to preview",
+        "preview_title": "Preview · {name}",
+        "preview_page": "Page {n} of {total}",
+        "preview_prev": "◀ Prev",
+        "preview_next": "Next ▶",
+        "preview_cut": "Everything outside the red box is trimmed · width −{w}% · height −{h}%",
+        "preview_none": "No margin to trim",
+        "preview_blank": "Blank page, left as is",
+        "preview_process": "Process with these settings",
         "update_check": "Check for updates",
         "update_check_tip": "Once a day at start-up, checks whether a newer version exists.\n"
                             "Only the tool name and version are sent to the Chaekgalpi server (chaekgalpi.co.kr), never your files.",
@@ -620,6 +713,22 @@ STRINGS = {
         "err_open": "{name} · 无法打开文件（文件已损坏或不是 PDF）",
         "err_save": "{name} · 无法保存结果。同名文件可能正在其他程序中打开，或文件夹没有写入权限",
         "err_unknown": "{name} · 处理时发生未知错误（{error}）",
+        "status_closing": "当前文件处理完后关闭 · 再次点击关闭可立即退出",
+        "status_cancelling": "正在取消…",
+        "status_cancelled": "已取消",
+        "cancel": "取消",
+        "cancelled": "{name} · 已取消（未生成结果文件）",
+        "open_folder": "打开文件夹",
+        "preview": "预览…",
+        "preview_dialog": "选择要预览的 PDF",
+        "preview_title": "预览 · {name}",
+        "preview_page": "第 {n} / {total} 页",
+        "preview_prev": "◀ 上一页",
+        "preview_next": "下一页 ▶",
+        "preview_cut": "红框外的部分会被裁掉 · 宽度减少 {w}% · 高度减少 {h}%",
+        "preview_none": "没有可裁剪的边距",
+        "preview_blank": "空白页，保持不变",
+        "preview_process": "按此设置处理",
         "update_check": "检查新版本",
         "update_check_tip": "启动时每天检查一次是否有新版本。\n"
                             "只会向服务器 chaekgalpi.co.kr 发送工具名称和版本，不会发送任何文件。",
@@ -735,8 +844,13 @@ class App:
         }.items()}
         self.text_widgets = []          # (위젯, 문구 키) — 언어를 바꾸면 다시 채운다
         self.log_entries = []           # (종류, 문구 키 또는 None, 값)
+        self.log_links = set()          # 클릭 함수를 이미 등록한 결과 기록 번호
         self.status_state = ("status_idle", {})
         self.update_info = None         # 알림으로 보여 줄 새 버전 정보 (없으면 None)
+        self.closing = False            # 처리 중에 창 닫기를 눌렀다: 지금 파일을 마치면 닫는다
+        self.cancel_requested = False   # 「취소」를 눌렀다: 지금 파일을 멈추고 남은 파일도 시작하지 않는다
+        self.preview = None             # 열려 있는 미리보기 창의 상태 (없으면 None)
+        root.protocol("WM_DELETE_WINDOW", self.on_close)
         self.update_var = tk.BooleanVar(value=update_check.enabled(self.settings))
 
         root.title(f"TrimPDF {APP_VERSION}")
@@ -806,6 +920,9 @@ class App:
         self.render_status()
         self.render_log()
         self.render_update_notice()
+        self.render_action()
+        if self.preview is not None:
+            self.render_preview()
 
     # ---- 화면 구성 ----
     def build_header(self, parent):
@@ -998,6 +1115,12 @@ class App:
         row.pack(fill="x", pady=(px(16), px(6)))
         self.status = tk.Label(row, font=self.fonts["file"], bg=COLORS["bg"], fg=COLORS["muted"], anchor="w")
         self.status.pack(side="left", fill="x", expand=True)
+        # 오른쪽 끝 버튼 하나: 쉬는 동안은 「미리보기…」, 처리 중에는 「취소」
+        self.action = tk.Label(row, font=self.fonts["small_bold"], bg=COLORS["bg"], fg=COLORS["accent"],
+                               cursor="hand2", takefocus=1, padx=px(4))
+        self.action.pack(side="right", padx=(px(10), 0))
+        for seq in ("<Button-1>", "<Return>", "<space>"):
+            self.action.bind(seq, lambda e: self.on_action())
         self.percent = tk.Label(row, text="", font=("Consolas", 9), bg=COLORS["bg"], fg=COLORS["muted"])
         self.percent.pack(side="right")
         self.bar = tk.Canvas(parent, height=px(6), bg=COLORS["bg"], highlightthickness=0)
@@ -1046,8 +1169,13 @@ class App:
         sb.pack(side="right", fill="y")
         self.log.pack(side="left", fill="both", expand=True)
         for tag, color in (("ok", COLORS["ok"]), ("err", COLORS["err"]), ("skip", COLORS["muted"]),
-                           ("empty", COLORS["faint"]), ("name", COLORS["ink"])):
+                           ("empty", COLORS["faint"]), ("name", COLORS["ink"]), ("folder", COLORS["accent"])):
             self.log.tag_configure(tag, foreground=color)
+        # 누를 수 있는 글자: 마우스를 올리면 손가락 모양
+        self.log.tag_bind("link", "<Enter>", lambda e: self.log.config(cursor="hand2"))
+        self.log.tag_bind("link", "<Leave>", lambda e: self.log.config(cursor="arrow"))
+        self.log.tag_configure("folder", font=self.fonts["small"])
+        self.log.tag_configure("link", underline=True)
 
     # ---- 새 버전 알림 (창 아래쪽 한 줄, 모달 아님) ----
     def build_update_notice(self, parent):
@@ -1113,23 +1241,217 @@ class App:
         self.render_update_notice()      # 끄면 떠 있던 알림도 숨긴다
 
     def add_log(self, kind, key=None, **params):
-        self.log_entries.append((kind, key, params))
-        self.render_log()
+        self.add_logs([(kind, key, params)])
+
+    def add_logs(self, entries):
+        """기록을 덧붙인다. 목록 전체를 다시 그리지 않아서 기록이 수백 건이어도 한 건에 드는 시간이 같고,
+        여러 건을 한 번에 넘기면 화면도 한 번만 갱신한다."""
+        if not entries:
+            return
+        start = len(self.log_entries)
+        self.log_entries.extend(entries)
+        if start == 0:
+            self.render_log()                   # 「아직 처리한 파일이 없습니다」 안내를 걷어 낸다
+            return
+        self.log.config(state="normal")
+        for i in range(start, len(self.log_entries)):
+            self._insert_log_entry(i)
+        self.log.see("end")
+        self.log.config(state="disabled")
 
     def render_log(self):
-        marks = {"ok": "✓", "err": "✕", "skip": "–"}
+        """목록 전체를 다시 그린다(처음 기록과 언어를 바꿀 때)."""
         self.log.config(state="normal")
         self.log.delete("1.0", "end")
         if not self.log_entries:
             self.log.insert("end", self.tr("empty"), "empty")
-        for i, (kind, key, params) in enumerate(self.log_entries):
-            if i:
-                self.log.insert("end", "\n")
-            text = self.tr(key, **params) if key else params["text"]
-            self.log.insert("end", f"{marks[kind]}  ", kind)
-            self.log.insert("end", text, "name" if kind == "ok" else kind)
+        for i in range(len(self.log_entries)):
+            self._insert_log_entry(i)
         self.log.see("end")
         self.log.config(state="disabled")
+
+    def _insert_log_entry(self, i):
+        marks = {"ok": "✓", "err": "✕", "skip": "–"}
+        kind, key, params = self.log_entries[i]
+        if i:
+            self.log.insert("end", "\n")
+        text = self.tr(key, **params) if key else params["text"]
+        self.log.insert("end", f"{marks[kind]}  ", kind)
+        path = params.get("path") if kind == "ok" else None
+        if not path:
+            self.log.insert("end", text, "name" if kind == "ok" else kind)
+            return
+        # 파일 이름을 누르면 결과 PDF 가 열리고, 「폴더 열기」를 누르면 그 파일을 선택한 탐색기가 열린다
+        self.log.insert("end", text, ("name", "link", f"open{i}"))
+        self.log.insert("end", "   ")
+        self.log.insert("end", self.tr("open_folder"), ("folder", "link", f"folder{i}"))
+        # 클릭 함수는 기록마다 한 번만 등록한다. 다시 그릴 때마다 등록하면 Tcl 명령이 기록 수의
+        # 제곱으로 쌓인다(400건이면 16만 개).
+        if i not in self.log_links:
+            self.log.tag_bind(f"open{i}", "<Button-1>", lambda e, p=path: self.open_result(p))
+            self.log.tag_bind(f"folder{i}", "<Button-1>", lambda e, p=path: self.show_in_folder(p))
+            self.log_links.add(i)
+
+    def open_result(self, path):
+        """결과 PDF 를 윈도우에 연결된 프로그램으로 연다. 지워졌으면 아무것도 하지 않는다."""
+        if os.path.isfile(path):
+            try:
+                os.startfile(path)
+            except OSError:
+                pass
+
+    # ---- 미리보기: 처리하기 전에 어디가 잘리는지 본다 ----
+    def choose_preview(self):
+        path = filedialog.askopenfilename(title=self.tr("preview_dialog"),
+                                          filetypes=[(self.tr("filetype"), "*.pdf")])
+        if path:
+            self.open_preview(path)
+
+    def current_crop_options(self):
+        """화면의 여백·흰색 기준 값. 잘못된 값이면 처리할 때와 같은 기본값을 쓴다."""
+        try:
+            return max(float(self.pad_var.get()), 0.0), int(self.th_var.get())
+        except (tk.TclError, ValueError):
+            return 5.0, 235
+
+    def open_preview(self, path):
+        self.close_preview()
+        name = os.path.basename(path)
+        try:
+            doc = pymupdf.open(path)
+        except Exception:
+            self.add_log("err", "err_open", name=name)
+            return
+        problem = None
+        if not doc.is_pdf or doc.page_count == 0:
+            problem = "err_open"
+        elif doc.needs_pass:
+            problem = "err_password"
+        if problem:
+            doc.close()
+            self.add_log("err", problem, name=name)
+            return
+        px = self.px
+        win = tk.Toplevel(self.root, bg=COLORS["bg"])
+        win.transient(self.root)
+        win.resizable(False, False)
+        canvas = tk.Canvas(win, bg=COLORS["rule"], highlightthickness=0)
+        canvas.pack(padx=px(16), pady=(px(16), px(8)))
+        info = tk.Label(win, font=self.fonts["small"], bg=COLORS["bg"], fg=COLORS["muted"], anchor="w",
+                        justify="left", wraplength=px(440))
+        info.pack(fill="x", padx=px(16))
+        nav = tk.Frame(win, bg=COLORS["bg"])
+        nav.pack(fill="x", padx=px(16), pady=(px(8), px(16)))
+
+        def link(parent, action, bold=False, **kw):
+            w = tk.Label(parent, font=self.fonts["small_bold" if bold else "small"], cursor="hand2",
+                         takefocus=1, **kw)
+            for seq in ("<Button-1>", "<Return>", "<space>"):
+                w.bind(seq, lambda e: action())
+            return w
+
+        prev = link(nav, lambda: self.preview_step(-1), bg=COLORS["bg"], fg=COLORS["accent"], padx=px(4))
+        prev.pack(side="left")
+        page_label = tk.Label(nav, font=self.fonts["small"], bg=COLORS["bg"], fg=COLORS["ink"], padx=px(8))
+        page_label.pack(side="left")
+        nxt = link(nav, lambda: self.preview_step(1), bg=COLORS["bg"], fg=COLORS["accent"], padx=px(4))
+        nxt.pack(side="left")
+        process = link(nav, self.preview_process, bold=True, bg=COLORS["accent"], fg="#FFFFFF",
+                       padx=px(10), pady=px(3))
+        process.pack(side="right")
+        self.preview = {"doc": doc, "path": path, "name": name, "index": 0, "win": win, "canvas": canvas,
+                        "info": info, "page": page_label, "prev": prev, "next": nxt, "process": process,
+                        "image": None, "clip": None}
+        win.protocol("WM_DELETE_WINDOW", self.close_preview)
+        win.bind("<Left>", lambda e: self.preview_step(-1))
+        win.bind("<Right>", lambda e: self.preview_step(1))
+        win.bind("<Escape>", lambda e: self.close_preview())
+        # 본 창에서 여백·흰색 기준을 바꾸고 돌아오면 그 값으로 다시 그린다
+        win.bind("<FocusIn>", lambda e: self.render_preview() if e.widget is win else None)
+        self.render_preview()
+        win.focus_set()
+
+    def render_preview(self):
+        st = self.preview
+        if st is None:
+            return
+        px = self.px
+        st["win"].title(self.tr("preview_title", name=st["name"]))
+        doc = st["doc"]
+        page = doc[st["index"]]
+        scale = min(px(440) / page.rect.width, px(560) / page.rect.height)
+        pix = page.get_pixmap(matrix=pymupdf.Matrix(scale, scale), alpha=False)
+        st["image"] = tk.PhotoImage(master=st["win"], data=pix.tobytes("ppm"))   # 참조를 쥐고 있어야 보인다
+        c = st["canvas"]
+        c.delete("all")
+        c.configure(width=pix.width, height=pix.height)
+        c.create_image(0, 0, anchor="nw", image=st["image"])
+        padding, threshold = self.current_crop_options()
+        content = find_content_rect(page, threshold) if page.get_contents() else None
+        if content is None:
+            st["clip"] = None
+            text = self.tr("preview_blank")
+        else:
+            clip = pymupdf.Rect(content.x0 - padding, content.y0 - padding,
+                                content.x1 + padding, content.y1 + padding) & page.rect
+            st["clip"] = clip
+            x0, y0, x1, y1 = clip.x0 * scale, clip.y0 * scale, clip.x1 * scale, clip.y1 * scale
+            W, H = pix.width, pix.height
+            for box in ((0, 0, W, y0), (0, y1, W, H), (0, y0, x0, y1), (x1, y0, W, y1)):
+                if box[2] - box[0] > 0.5 and box[3] - box[1] > 0.5:      # 잘려 나갈 곳을 흐리게 덮는다
+                    c.create_rectangle(*box, fill=COLORS["ink"], stipple="gray50", outline="")
+            c.create_rectangle(x0, y0, x1, y1, outline="#E5484D", width=max(2, px(2)))
+            cut_w = round((1 - clip.width / page.rect.width) * 100)
+            cut_h = round((1 - clip.height / page.rect.height) * 100)
+            text = self.tr("preview_none") if max(cut_w, cut_h) < 1 else \
+                self.tr("preview_cut", w=cut_w, h=cut_h)
+        st["info"].configure(text=text)
+        st["page"].configure(text=self.tr("preview_page", n=st["index"] + 1, total=doc.page_count))
+        first, last = st["index"] == 0, st["index"] == doc.page_count - 1
+        st["prev"].configure(text=self.tr("preview_prev"), fg=COLORS["faint"] if first else COLORS["accent"])
+        st["next"].configure(text=self.tr("preview_next"), fg=COLORS["faint"] if last else COLORS["accent"])
+        st["process"].configure(text=self.tr("preview_process"))
+
+    def preview_step(self, delta):
+        st = self.preview
+        if st is None:
+            return
+        index = min(max(st["index"] + delta, 0), st["doc"].page_count - 1)
+        if index != st["index"]:
+            st["index"] = index
+            self.render_preview()
+
+    def preview_process(self):
+        """미리 본 파일을 지금 설정으로 처리한다."""
+        st = self.preview
+        if st is None:
+            return
+        path = st["path"]
+        self.close_preview()
+        self.add_files([path])
+
+    def close_preview(self):
+        st, self.preview = self.preview, None
+        if st is None:
+            return
+        try:
+            st["doc"].close()               # 원본 파일을 붙잡고 있지 않는다
+        finally:
+            try:
+                st["win"].destroy()
+            except tk.TclError:
+                pass
+            release_cache()
+
+    def show_in_folder(self, path):
+        """결과 파일을 선택한 채로 탐색기를 연다. 파일이 없으면 폴더만 연다."""
+        try:
+            if os.path.isfile(path):
+                subprocess.Popen(f'explorer /select,"{os.path.normpath(path)}"')
+            elif os.path.isdir(os.path.dirname(path)):
+                os.startfile(os.path.dirname(path))
+        except OSError:
+            pass
 
     # ---- 입력 ----
     def on_drag_enter(self, event):
@@ -1153,9 +1475,8 @@ class App:
 
     def add_files(self, files):
         pdfs = [f for f in files if f.lower().endswith(".pdf") and os.path.isfile(f)]
-        for f in files:
-            if f not in pdfs:
-                self.add_log("skip", "skipped", name=os.path.basename(f) or f)
+        wanted = set(pdfs)
+        self.add_logs([("skip", "skipped", {"name": os.path.basename(f) or f}) for f in files if f not in wanted])
         if not pdfs:
             return
         self.pending.extend(pdfs)
@@ -1178,18 +1499,30 @@ class App:
             opts = dict(fit_to_page=self.fit_var.get(), uniform_size=self.uniform_var.get())
         files, self.pending = self.pending, []
         self.busy = True
+        self.cancel_requested = False
+        self.render_action()
         threading.Thread(target=self.worker, args=(files, opts), daemon=True).start()
 
     def worker(self, files, opts):
         q = self.queue
+
+        def progress(done, total):
+            if self.cancel_requested:   # 「취소」: 쪽 단위로 멈춘다. 저장 전이므로 결과 파일은 생기지 않는다
+                raise Cancelled()
+            q.put(("progress", done * 100 / total))
+
         for n, path in enumerate(files, 1):
+            if self.closing or self.cancel_requested:   # 닫는 중·취소했으면 남은 파일은 시작하지 않는다
+                break
             name = os.path.basename(path)
             q.put(("status", ("status_working", {"n": n, "total": len(files), "name": name})))
             q.put(("progress", 0))
             try:
-                dst = process_pdf(path, **opts,
-                                  progress=lambda d, t: q.put(("progress", d * 100 / t)))
-                q.put(("log", ("ok", None, {"text": os.path.basename(dst)})))
+                dst = process_pdf(path, **opts, progress=progress)
+                q.put(("log", ("ok", None, {"text": os.path.basename(dst), "path": dst})))
+            except Cancelled:
+                q.put(("log", ("skip", "cancelled", {"name": name})))
+                break
             except PasswordProtectedError:
                 q.put(("log", ("err", "err_password", {"name": name})))
             except PdfOpenError:
@@ -1205,20 +1538,64 @@ class App:
             while True:
                 kind, value = self.queue.get_nowait()
                 if kind == "status":
-                    self.set_status(value[0], **value[1])
+                    if not (self.cancel_requested or self.closing):   # 「취소 중」「닫는 중」 안내를 덮지 않는다
+                        self.set_status(value[0], **value[1])
                 elif kind == "progress":
                     self.set_progress(value)
                 elif kind == "log":
                     self.add_log(value[0], value[1], **value[2])
                 elif kind == "done":
                     self.busy = False
-                    if self.pending:
+                    if self.closing:        # 처리 중에 닫기를 눌렀다: 지금 파일을 마쳤으니 닫는다
+                        self.root.destroy()
+                        return
+                    if self.cancel_requested:
+                        self.set_status("status_cancelled")
+                        self.set_progress(0)
+                    elif self.pending:
                         self.start_worker()
                     else:
                         self.set_status("status_done")
+                    self.render_action()
         except queue.Empty:
             pass
         self.root.after(100, self.poll)
+
+    # ---- 진행 줄 오른쪽 버튼: 쉬는 동안 「미리보기…」, 처리 중 「취소」 ----
+    def render_action(self):
+        if not hasattr(self, "action"):
+            return
+        if self.busy:
+            self.action.configure(text=self.tr("cancel"),
+                                  fg=COLORS["faint"] if self.cancel_requested else COLORS["err"])
+        else:
+            self.action.configure(text=self.tr("preview"), fg=COLORS["accent"])
+
+    def on_action(self):
+        if self.busy:
+            self.on_cancel()
+        else:
+            self.choose_preview()
+
+    def on_cancel(self):
+        """지금 파일을 쪽 단위로 멈추고(결과 파일은 만들지 않는다) 기다리던 파일도 시작하지 않는다."""
+        if not self.busy or self.cancel_requested:
+            return
+        self.cancel_requested = True
+        self.pending = []
+        self.set_status("status_cancelling")
+        self.render_action()
+
+    def on_close(self):
+        """처리 중이 아니면 바로 닫는다. 처리 중이면 지금 파일을 마친 뒤 닫고, 한 번 더 누르면 바로 닫는다.
+        결과는 임시 파일에 다 쓴 뒤 이름을 바꾸므로, 바로 닫아도 잘린 결과 파일은 남지 않는다."""
+        if not self.busy or self.closing:
+            self.close_preview()
+            self.root.destroy()
+            return
+        self.closing = True
+        self.pending = []
+        self.set_status("status_closing")
 
 
 def main():

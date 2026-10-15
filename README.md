@@ -11,10 +11,12 @@ TrimPDF는 PDF를 창에 끌어다 놓기만 하면 페이지마다 위·아래�
 ## 특징
 
 - **드래그 한 번:** PDF를 창이나 exe 아이콘에 놓으면 바로 처리합니다. 여러 파일도 한꺼번에 됩니다.
-- **원본은 그대로:** 결과는 같은 폴더에 `파일명_TrimPDF.pdf`로 저장됩니다.
+- **원본은 그대로:** 결과는 같은 폴더에 `파일명_TrimPDF.pdf`로 저장됩니다. 같은 이름의 파일이 이미 있으면 덮어쓰지 않고 `파일명_TrimPDF(2).pdf`처럼 번호를 붙입니다.
 - **글자는 선명하게:** 페이지를 이미지로 바꾸지 않아 텍스트 선택·검색과 목차가 유지됩니다.
 - **스캔본도 깔끔하게:** 누렇게 바랜 종이 배경, 먼지, 가장자리 그림자를 무시하고 실제 내용만 찾습니다.
 - **읽기 편한 결과:** 모든 페이지 크기를 통일하고, 그림 한 장뿐인 페이지가 지나치게 커지지 않게 확대를 제한합니다.
+- **미리보기:** 처리하기 전에 쪽마다 어디가 잘리는지 빨간 상자로 확인할 수 있습니다. 진행 표시줄 오른쪽의 「미리보기…」를 누르세요.
+- **취소와 결과 열기:** 처리 중에는 같은 자리가 「취소」로 바뀝니다. 끝나면 결과 목록의 파일 이름을 눌러 바로 열고, 「폴더 열기」로 저장된 곳을 볼 수 있습니다.
 - **내 PC에서만 처리:** 파일을 인터넷에 올리지 않습니다(새 버전 확인만 예외, 끌 수 있음). 쪽수나 파일 크기 제한도 없습니다.
 - **한국어 · English · 中文** 화면을 지원합니다.
 
@@ -88,11 +90,12 @@ pyinstaller --noconfirm --onefile --windowed --name TrimPDF --collect-data tkint
 
 ## English
 
-TrimPDF detects the actual content area on every page of a PDF, trims the top, bottom, left and right margins, enlarges the content, and saves the result as `filename_TrimPDF.pdf`. It is handy for reading scanned books or wide-margin documents on tablets and e-readers.
+TrimPDF detects the actual content area on every page of a PDF, trims the top, bottom, left and right margins, enlarges the content, and saves the result as `filename_TrimPDF.pdf` (an existing file is never overwritten; a number such as `filename_TrimPDF(2).pdf` is added instead). It is handy for reading scanned books or wide-margin documents on tablets and e-readers.
 
 - Download `TrimPDF.exe` from [Releases](https://github.com/microhan1/TrimPDF/releases/latest), run it, and drop PDF files onto the window.
 - Text stays vector (selectable and searchable); files never leave your PC (the only exception is the update check described below, which can be turned off).
 - The interface is available in Korean, English and Chinese (Simplified).
+- "Preview…" (right of the progress bar) shows, page by page, what will be trimmed before you process a file. While processing, the same spot becomes "Cancel". In the results list, click a file name to open it or "Show in folder" to see where it was saved.
 - **Check for updates:** to see whether a newer version exists, TrimPDF sends only the tool name and its version to the Chaekgalpi server (chaekgalpi.co.kr). Files are never sent, the check runs at most once a day, and you can turn it off with the checkbox at the top right. If a new version exists, a one-line notice appears at the bottom of the window; "Update" opens the Chaekgalpi tools page. TrimPDF never downloads or replaces itself.
 - User guide in Korean, English and Chinese: [microhan1.github.io/TrimPDF/TrimPDF_Manual.html](https://microhan1.github.io/TrimPDF/TrimPDF_Manual.html#en)
 - Finished the book? Log it on [Chaekgalpi Library](https://chaekgalpi.co.kr/en/tools/trimpdf?utm_source=github&utm_medium=referral&utm_campaign=tool_cta&utm_content=trimpdf), a web service for keeping track of the books you read (tools page in English; the reading-log service itself is in Korean).
