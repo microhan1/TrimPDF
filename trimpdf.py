@@ -15,7 +15,7 @@ import threading
 import tkinter as tk
 import tkinter.font as tkfont
 import webbrowser
-from tkinter import filedialog, ttk
+from tkinter import filedialog, messagebox, ttk
 
 import numpy as np
 import pymupdf
@@ -599,6 +599,10 @@ STRINGS = {
         "update_available": "새 버전이 나왔습니다: {latest} (현재 {current})",
         "update_open": "업데이트",
         "update_later": "다음에",
+        "feedback": "의견 보내기",
+        "feedback_tip": "안 되는 것·불편한 것·바라는 기능을 알려 주세요(브라우저가 열립니다)",
+        "feedback_failed": "브라우저를 열지 못했습니다. 아래 주소를 브라우저 주소 창에 붙여 넣어 주세요.\n"
+                           "(이 창에서 Ctrl+C 를 누르면 주소가 들어 있는 내용이 복사됩니다)\n\n{url}",
         "dialog_title": "PDF 파일 선택",
         "filetype": "PDF 파일",
     },
@@ -667,6 +671,10 @@ STRINGS = {
         "update_available": "Version {latest} is available (current {current})",
         "update_open": "Update",
         "update_later": "Later",
+        "feedback": "Send feedback",
+        "feedback_tip": "Tell us what's broken or missing (opens your browser)",
+        "feedback_failed": "Couldn't open your browser. Paste the address below into your browser's address bar.\n"
+                           "(Press Ctrl+C in this window to copy its text, address included.)\n\n{url}",
         "dialog_title": "Choose PDF files",
         "filetype": "PDF files",
     },
@@ -735,6 +743,10 @@ STRINGS = {
         "update_available": "有新版本 {latest}（当前 {current}）",
         "update_open": "更新",
         "update_later": "以后",
+        "feedback": "发送反馈",
+        "feedback_tip": "告诉我们问题或建议（将打开浏览器）",
+        "feedback_failed": "无法打开浏览器。请将下面的地址粘贴到浏览器的地址栏中。\n"
+                           "（在此窗口按 Ctrl+C 可复制窗口内容，其中包含地址）\n\n{url}",
         "dialog_title": "选择 PDF 文件",
         "filetype": "PDF 文件",
     },
@@ -934,6 +946,14 @@ class App:
                  fg=COLORS["ink"]).grid(row=0, column=0, sticky="w")
         right = tk.Frame(row, bg=COLORS["bg"])
         right.grid(row=0, column=1, sticky="e")
+        self.feedback_link = tk.Label(right, font=self.fonts["small"], bg=COLORS["bg"], fg=COLORS["accent"],
+                                      cursor="hand2", takefocus=1, highlightthickness=1,
+                                      highlightbackground=COLORS["bg"], highlightcolor=COLORS["accent"])
+        self.feedback_link.pack(side="left", padx=(0, px(12)))
+        for seq in ("<Button-1>", "<Return>", "<space>"):
+            self.feedback_link.bind(seq, lambda e: self.on_feedback())
+        self.text_widgets.append((self.feedback_link, "feedback"))
+        Tooltip(self.feedback_link, lambda: self.tr("feedback_tip"), self.fonts["small"], self.s)
         self.update_check_box = ttk.Checkbutton(right, style="Head.TCheckbutton", variable=self.update_var,
                                                 command=self.on_update_toggle)
         self.update_check_box.pack(side="left", padx=(0, px(12)))
@@ -1239,6 +1259,17 @@ class App:
         self.settings["update_check"] = bool(self.update_var.get())
         save_settings(self.settings)
         self.render_update_notice()      # 끄면 떠 있던 알림도 숨긴다
+
+    def on_feedback(self):
+        """툴 페이지의 의견 칸을 브라우저로 연다. 서버에 아무것도 보내지 않는다.
+        브라우저가 열리지 않으면 주소를 복사할 수 있게 메시지 상자로 보여 준다."""
+        url = update_check.feedback_url(UPDATE_SLUG, APP_VERSION, self.lang)
+        try:
+            opened = webbrowser.open(url)
+        except Exception:
+            opened = False
+        if not opened:
+            messagebox.showinfo(self.tr("feedback"), self.tr("feedback_failed", url=url), parent=self.root)
 
     def add_log(self, kind, key=None, **params):
         self.add_logs([(kind, key, params)])

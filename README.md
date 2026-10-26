@@ -60,6 +60,12 @@ TrimPDF는 PDF를 창에 끌어다 놓기만 하면 페이지마다 위·아래�
 
 *가짜 응답으로 띄운 예시 화면입니다. 실제 서버의 답이 아닙니다.*
 
+## 의견 보내기
+
+안 되는 것·불편한 것·바라는 기능은 프로그램 오른쪽 위 「의견 보내기」를 누르거나 https://chaekgalpi.co.kr/tools/trimpdf#feedback 에서 로그인 없이 보낼 수 있습니다. [GitHub Issues](https://github.com/microhan1/TrimPDF/issues)도 그대로 받습니다. 「의견 보내기」는 브라우저로 그 페이지를 열 뿐, 프로그램이 서버에 따로 보내는 것은 없습니다.
+
+<img src="docs/images/feedback_link.png" alt="오른쪽 위에 「의견 보내기」가 있는 TrimPDF 화면" width="420">
+
 ## 소스에서 실행하기
 
 Python 3.10 이상이 필요합니다.
@@ -97,6 +103,7 @@ TrimPDF detects the actual content area on every page of a PDF, trims the top, b
 - The interface is available in Korean, English and Chinese (Simplified).
 - "Preview…" (right of the progress bar) shows, page by page, what will be trimmed before you process a file. While processing, the same spot becomes "Cancel". In the results list, click a file name to open it or "Show in folder" to see where it was saved.
 - **Check for updates:** to see whether a newer version exists, TrimPDF sends only the tool name and its version to the Chaekgalpi server (chaekgalpi.co.kr). Files are never sent, the check runs at most once a day, and you can turn it off with the checkbox at the top right. If a new version exists, a one-line notice appears at the bottom of the window; "Update" opens the Chaekgalpi tools page. TrimPDF never downloads or replaces itself.
+- **Feedback:** click "Send feedback" at the top right, or go to https://chaekgalpi.co.kr/en/tools/trimpdf#feedback — no sign-in needed. [GitHub Issues](https://github.com/microhan1/TrimPDF/issues) are welcome too. The button only opens that page in your browser; the app itself sends nothing.
 - User guide in Korean, English and Chinese: [microhan1.github.io/TrimPDF/TrimPDF_Manual.html](https://microhan1.github.io/TrimPDF/TrimPDF_Manual.html#en)
 - Finished the book? Log it on [Chaekgalpi Library](https://chaekgalpi.co.kr/en/tools/trimpdf?utm_source=github&utm_medium=referral&utm_campaign=tool_cta&utm_content=trimpdf), a web service for keeping track of the books you read (tools page in English; the reading-log service itself is in Korean).
 
