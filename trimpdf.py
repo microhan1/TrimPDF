@@ -526,11 +526,12 @@ COLORS = {
     "err": "#B42318",
 }
 
-LANGUAGES = [("ko", "한국어"), ("en", "English"), ("zh", "中文")]
+LANGUAGES = [("ko", "한국어"), ("en", "English"), ("zh", "中文"), ("ja", "日本語")]
 FONT_CANDIDATES = {
     "ko": ("Malgun Gothic", "맑은 고딕", "Segoe UI"),
     "en": ("Segoe UI", "Malgun Gothic"),
     "zh": ("Microsoft YaHei UI", "Microsoft YaHei", "SimHei", "Malgun Gothic"),
+    "ja": ("Yu Gothic UI", "Meiryo UI", "Meiryo", "MS UI Gothic", "Malgun Gothic"),
 }
 
 STRINGS = {
@@ -750,6 +751,78 @@ STRINGS = {
         "dialog_title": "选择 PDF 文件",
         "filetype": "PDF 文件",
     },
+    "ja": {
+        "subtitle": "余白をトリミングして内容を拡大し、「ファイル名_TrimPDF.pdf」として保存します。",
+        "drop_title": "PDF ファイルをここにドロップ",
+        "drop_title_drag": "ここで離すとすぐに処理します",
+        "drop_title_nodnd": "クリックして PDF ファイルを選択",
+        "drop_sub": "複数のファイルもまとめて処理できます · クリックで選択",
+        "drop_sub_nodnd": "ドラッグ＆ドロップには tkinterdnd2 が必要です",
+        "card_mode": "処理方法",
+        "mode_fit": "トリミングして拡大",
+        "mode_crop": "トリミングのみ（サイズはそのまま）",
+        "card_crop": "トリミング",
+        "padding": "残す余白",
+        "padding_unit": "pt",
+        "padding_tip": "検出した内容の周りに残す余白です。5 pt ≈ 1.8 mm\n"
+                       "文字が端に寄りすぎて窮屈に見えるときは、10 くらいに上げてください。",
+        "threshold": "白のしきい値",
+        "threshold_unit": "0～255",
+        "threshold_tip": "この値より暗い部分を内容とみなします（0 黒 ～ 255 白）。\n"
+                         "スキャンの汚れで余白がうまく切れないときは、200 くらいに下げてください。",
+        "hint": "項目名にマウスを合わせると説明が出ます",
+        "card_zoom": "拡大",
+        "side": "左右の空白",
+        "side_unit": "%",
+        "side_tip": "内容が縦長のとき、左右に残す空白の割合です。\n"
+                    "0 ならページ幅を内容に合わせ、100 なら元の幅のままにします。",
+        "maxzoom": "最大倍率",
+        "maxzoom_unit": "倍",
+        "maxzoom_tip": "小さな図や数行だけのページが大きくなりすぎないよう、拡大率を制限します。\n"
+                       "0 なら制限しません。",
+        "uniform": "全ページのサイズをそろえる",
+        "uniform_tip": "すべてのページを同じサイズにそろえ、ページをめくってもサイズが変わらないようにします。\n"
+                       "縦向きと横向きのページは、それぞれ別にそろえます。",
+        "status_idle": "待機中",
+        "status_working": "処理中（{n}/{total}）· {name}",
+        "status_done": "完了 · 結果ファイルは元のファイルと同じフォルダーに保存しました",
+        "results": "処理結果",
+        "empty": "まだ処理したファイルはありません。",
+        "skipped": "PDF ではないためスキップ · {name}",
+        "bad_options": "オプションの値が正しくないため、既定値で処理します。",
+        "err_password": "{name} · パスワードで保護された PDF のため処理できません",
+        "err_open": "{name} · ファイルを開けません（破損しているか、PDF ではありません）",
+        "err_save": "{name} · 結果を保存できませんでした。同じ名前の結果ファイルが別のプログラムで開かれているか、フォルダーへの書き込み権限がありません",
+        "err_unknown": "{name} · 処理中に予期しないエラーが発生しました（{error}）",
+        "status_closing": "処理中のファイルが終わったら閉じます · もう一度閉じるとすぐに終了します",
+        "status_cancelling": "キャンセルしています…",
+        "status_cancelled": "キャンセルしました",
+        "cancel": "キャンセル",
+        "cancelled": "{name} · キャンセルしました（結果ファイルは作成していません）",
+        "open_folder": "フォルダーを開く",
+        "preview": "プレビュー…",
+        "preview_dialog": "プレビューする PDF を選択",
+        "preview_title": "プレビュー · {name}",
+        "preview_page": "{n} / {total} ページ",
+        "preview_prev": "◀ 前へ",
+        "preview_next": "次へ ▶",
+        "preview_cut": "赤枠の外側がトリミングされます · 幅 −{w}% · 高さ −{h}%",
+        "preview_none": "トリミングする余白はありません",
+        "preview_blank": "白紙のページのため、そのままにします",
+        "preview_process": "この設定で処理",
+        "update_check": "更新を確認",
+        "update_check_tip": "起動時に、新しいバージョンがあるかを 1 日 1 回確認します。\n"
+                            "Chaekgalpi のサーバー（chaekgalpi.co.kr）にはツール名とバージョンだけを送り、ファイルは送りません。",
+        "update_available": "新しいバージョン {latest} があります（現在 {current}）",
+        "update_open": "アップデート",
+        "update_later": "後で",
+        "feedback": "ご意見を送る",
+        "feedback_tip": "不具合・使いにくい点・ほしい機能をお知らせください（ブラウザーが開きます）",
+        "feedback_failed": "ブラウザーを開けませんでした。下のアドレスをブラウザーのアドレスバーに貼り付けてください。\n"
+                           "（このウィンドウで Ctrl+C を押すと、アドレスを含む内容がコピーされます）\n\n{url}",
+        "dialog_title": "PDF ファイルを選択",
+        "filetype": "PDF ファイル",
+    },
 }
 
 APPDATA_DIR = os.environ.get("APPDATA") or os.path.expanduser("~")
@@ -782,7 +855,7 @@ def default_language():
     """처음 실행할 때는 Windows 표시 언어를 따른다."""
     try:
         primary = ctypes.windll.kernel32.GetUserDefaultUILanguage() & 0x3FF
-        return {0x12: "ko", 0x04: "zh"}.get(primary, "en")
+        return {0x12: "ko", 0x04: "zh", 0x11: "ja"}.get(primary, "en")
     except Exception:
         return "ko"
 
@@ -848,7 +921,8 @@ class App:
 
         self.settings = load_settings()
         saved = self.settings.get("language")
-        self.lang = saved if saved in STRINGS else default_language()
+        # 설정 파일은 누구나 고칠 수 있다: 목록·사전 같은 값이면 사전 검색에서 TypeError 가 나므로 문자열만 본다
+        self.lang = saved if isinstance(saved, str) and saved in STRINGS else default_language()
         self.families = set(tkfont.families(root))
         self.fonts = {name: tkfont.Font(root, size=size, weight=weight) for name, (size, weight) in {
             "title": (16, "bold"), "drop": (12, "bold"), "body": (10, "normal"),
@@ -924,7 +998,8 @@ class App:
         for font in self.fonts.values():
             font.configure(family=family)
         # 파일 이름에는 화면 언어와 상관없이 한글이 섞일 수 있어서, 한글·한자를 제대로 그리는 글꼴로 표시한다
-        self.fonts["file"].configure(family=self.pick_font("zh" if self.lang == "zh" else "ko"))
+        # (중국어·일본어 화면은 그 언어 글꼴로, 한글은 Windows 가 다른 글꼴에서 빌려 그린다)
+        self.fonts["file"].configure(family=self.pick_font(self.lang if self.lang in ("zh", "ja") else "ko"))
         for widget, key in self.text_widgets:
             widget.configure(text=self.tr(key))
         self.paint_language_switch()
@@ -964,27 +1039,41 @@ class App:
                         anchor="w").grid(row=1, column=0, columnspan=2, sticky="w")
 
     def build_language_switch(self, parent):
+        """언어 선택: 지금 언어 이름과 ▼ 를 보여 주고, 누르면 네 언어 목록이 열린다.
+        언어마다 단추를 두면 네 개째부터 가장 좁은 창에서 머리줄의 제목을 밀어내서 드롭다운으로 바꿨다."""
         px = self.px
         border = tk.Frame(parent, bg=COLORS["rule"], padx=1, pady=1)
-        inner = tk.Frame(border, bg=COLORS["rule"])
+        inner = tk.Frame(border, bg=COLORS["surface"], cursor="hand2")
         inner.pack()
-        self.lang_buttons = {}
-        for i, (code, name) in enumerate(LANGUAGES):
-            button = tk.Label(inner, text=name, font=(self.pick_font(code), 9), padx=px(10), pady=px(3),
-                              cursor="hand2", takefocus=1, highlightthickness=1)
-            button.pack(side="left", padx=(0 if i == 0 else 1, 0))
-            button.bind("<Button-1>", lambda e, c=code: self.set_language(c))
-            button.bind("<Return>", lambda e, c=code: self.set_language(c))
-            button.bind("<space>", lambda e, c=code: self.set_language(c))
-            self.lang_buttons[code] = button
+        self.lang_var = tk.StringVar(value=self.lang)
+        self.lang_button = tk.Label(inner, bg=COLORS["surface"], fg=COLORS["accent"], padx=px(8), pady=px(3),
+                                    cursor="hand2", takefocus=1, highlightthickness=1,
+                                    highlightbackground=COLORS["surface"], highlightcolor=COLORS["accent"])
+        self.lang_button.pack(side="left")
+        arrow = tk.Label(inner, text="▼", font=(self.pick_font("ko"), 6), bg=COLORS["surface"], fg=COLORS["muted"],
+                         cursor="hand2", padx=0)
+        arrow.pack(side="left", padx=(0, px(8)))
+        for widget in (inner, self.lang_button, arrow):
+            widget.bind("<Button-1>", lambda e: self.open_language_menu())
+        for seq in ("<Return>", "<space>", "<Down>"):
+            self.lang_button.bind(seq, lambda e: self.open_language_menu())
+        self.lang_menu = tk.Menu(self.lang_button, tearoff=0)
+        for code, name in LANGUAGES:
+            self.lang_menu.add_radiobutton(label=name, value=code, variable=self.lang_var,
+                                           font=(self.pick_font(code), 9),
+                                           command=lambda c=code: self.set_language(c))
         return border
 
+    def open_language_menu(self):
+        b = self.lang_button
+        try:
+            self.lang_menu.tk_popup(b.winfo_rootx(), b.winfo_rooty() + b.winfo_height())
+        finally:
+            self.lang_menu.grab_release()
+
     def paint_language_switch(self):
-        for code, button in self.lang_buttons.items():
-            selected = code == self.lang
-            bg = COLORS["surface"] if selected else COLORS["bg"]
-            button.configure(bg=bg, fg=COLORS["accent"] if selected else COLORS["muted"],
-                             highlightbackground=bg, highlightcolor=COLORS["accent"])
+        self.lang_var.set(self.lang)
+        self.lang_button.configure(text=dict(LANGUAGES)[self.lang], font=(self.pick_font(self.lang), 9))
 
     def build_drop_zone(self, parent):
         self.drop = tk.Canvas(parent, height=self.px(150), bg=COLORS["bg"], highlightthickness=0,

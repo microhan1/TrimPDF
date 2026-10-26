@@ -18,7 +18,7 @@ TrimPDF는 PDF를 창에 끌어다 놓기만 하면 페이지마다 위·아래�
 - **미리보기:** 처리하기 전에 쪽마다 어디가 잘리는지 빨간 상자로 확인할 수 있습니다. 진행 표시줄 오른쪽의 「미리보기…」를 누르세요.
 - **취소와 결과 열기:** 처리 중에는 같은 자리가 「취소」로 바뀝니다. 끝나면 결과 목록의 파일 이름을 눌러 바로 열고, 「폴더 열기」로 저장된 곳을 볼 수 있습니다.
 - **내 PC에서만 처리:** 파일을 인터넷에 올리지 않습니다(새 버전 확인만 예외, 끌 수 있음). 쪽수나 파일 크기 제한도 없습니다.
-- **한국어 · English · 中文** 화면을 지원합니다.
+- **한국어 · English · 中文 · 日本語** 화면을 지원합니다.
 
 <img src="docs/images/screenshot_ko.png" alt="TrimPDF 프로그램 화면" width="420">
 
@@ -100,12 +100,28 @@ TrimPDF detects the actual content area on every page of a PDF, trims the top, b
 
 - Download `TrimPDF.exe` from [Releases](https://github.com/microhan1/TrimPDF/releases/latest), run it, and drop PDF files onto the window.
 - Text stays vector (selectable and searchable); files never leave your PC (the only exception is the update check described below, which can be turned off).
-- The interface is available in Korean, English and Chinese (Simplified).
+- The interface is available in Korean, English, Chinese (Simplified) and Japanese.
 - "Preview…" (right of the progress bar) shows, page by page, what will be trimmed before you process a file. While processing, the same spot becomes "Cancel". In the results list, click a file name to open it or "Show in folder" to see where it was saved.
 - **Check for updates:** to see whether a newer version exists, TrimPDF sends only the tool name and its version to the Chaekgalpi server (chaekgalpi.co.kr). Files are never sent, the check runs at most once a day, and you can turn it off with the checkbox at the top right. If a new version exists, a one-line notice appears at the bottom of the window; "Update" opens the Chaekgalpi tools page. TrimPDF never downloads or replaces itself.
 - **Feedback:** click "Send feedback" at the top right, or go to https://chaekgalpi.co.kr/en/tools/trimpdf#feedback — no sign-in needed. [GitHub Issues](https://github.com/microhan1/TrimPDF/issues) are welcome too. The button only opens that page in your browser; the app itself sends nothing.
 - User guide in Korean, English and Chinese: [microhan1.github.io/TrimPDF/TrimPDF_Manual.html](https://microhan1.github.io/TrimPDF/TrimPDF_Manual.html#en)
 - Finished the book? Log it on [Chaekgalpi Library](https://chaekgalpi.co.kr/en/tools/trimpdf?utm_source=github&utm_medium=referral&utm_campaign=tool_cta&utm_content=trimpdf), a web service for keeping track of the books you read (tools page in English; the reading-log service itself is in Korean).
+
+## 日本語
+
+TrimPDF は、PDF の各ページで実際に内容がある範囲を見つけて上下左右の余白をトリミングし、内容を拡大して `ファイル名_TrimPDF.pdf` として保存する Windows 用の無料ソフトです。スキャンした本や余白の広い PDF を、タブレットや電子書籍リーダーで読みやすくします。
+
+- [Releases](https://github.com/microhan1/TrimPDF/releases/latest) から `TrimPDF.exe` をダウンロードして実行し、PDF ファイルをウィンドウにドラッグ＆ドロップするだけです。インストールは不要です。
+- 元のファイルは変更しません。同じ名前のファイルがすでにある場合は上書きせず、`ファイル名_TrimPDF(2).pdf` のように番号を付けます。
+- ページを画像に変換しないため、テキストの選択・検索や目次（しおり）はそのまま残ります。
+- 処理はすべてお使いの PC の中で行い、ファイルをインターネットに送ることはありません（下記の更新確認だけは例外で、オフにできます）。
+- 画面は韓国語・英語・中国語（簡体字）・日本語に対応しています。右上で切り替えた言語は次回の起動時にも使われます。初回は Windows の表示言語に合わせます。
+- 進行状況バーの右にある「プレビュー…」を押すと、処理する前にページごとのトリミング範囲を赤枠で確認できます。処理中は同じ場所が「キャンセル」に変わります。処理結果の一覧でファイル名をクリックするとファイルが開き、「フォルダーを開く」で保存先を確認できます。
+- **更新を確認:** 新しいバージョンがあるかを確かめるため、ツール名とバージョンだけを Chaekgalpi のサーバー（chaekgalpi.co.kr）に送ります。ファイルは送らず、確認は 1 日 1 回までで、右上の「更新を確認」のチェックを外すとオフにできます。新しいバージョンがあるとウィンドウ下部に 1 行の案内が表示され、「アップデート」を押すと Chaekgalpi のツールページが開きます。自動でダウンロードしたり置き換えたりはしません。
+- **ご意見を送る:** 右上の「ご意見を送る」を押すか、https://chaekgalpi.co.kr/en/tools/trimpdf#feedback からログインなしで送れます（ページは英語です）。[GitHub Issues](https://github.com/microhan1/TrimPDF/issues) でも受け付けています。このボタンはブラウザーでそのページを開くだけで、ソフト自体は何も送信しません。
+- 使用説明書は韓国語・英語・中国語で用意しています: [microhan1.github.io/TrimPDF/TrimPDF_Manual.html](https://microhan1.github.io/TrimPDF/TrimPDF_Manual.html#en)
+
+<img src="docs/images/screenshot_ja.png" alt="日本語表示の TrimPDF の画面" width="420">
 
 ## 라이선스 / License
 
