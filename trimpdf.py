@@ -896,11 +896,18 @@ class Tooltip:
         x = self.widget.winfo_rootx()
         y = self.widget.winfo_rooty() + self.widget.winfo_height() + int(4 * self.scale)
         self.tip = tk.Toplevel(self.widget)
+        self.tip.withdraw()
         self.tip.wm_overrideredirect(True)
-        self.tip.wm_geometry(f"+{x}+{y}")
         tk.Label(self.tip, text=self.get_text(), justify="left", wraplength=int(320 * self.scale),
                  bg=COLORS["ink"], fg="#FFFFFF", font=self.font,
                  padx=int(10 * self.scale), pady=int(7 * self.scale)).pack()
+        # 오른쪽 끝 위젯(의견 보내기 등)의 말풍선은 창 오른쪽 끝 안으로 당긴다. 창이 화면 오른쪽 끝에 붙어 있으면
+        # 그대로는 화면 밖으로 나가 잘린다(일본어 말풍선이 100px 넘게 잘렸다)
+        self.tip.update_idletasks()
+        top = self.widget.winfo_toplevel()
+        x = max(top.winfo_rootx(), min(x, top.winfo_rootx() + top.winfo_width() - self.tip.winfo_reqwidth()))
+        self.tip.wm_geometry(f"+{x}+{y}")
+        self.tip.deiconify()
 
     def hide(self, _event=None):
         if self.tip:

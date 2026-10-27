@@ -26,6 +26,7 @@ TIMEOUT = 4.0
 DELAY_MS = 1500
 POLL_MS = 100           # Tk 쪽이 스레드의 답을 들여다보는 간격
 MAX_BYTES = 64 * 1024
+DEFAULT_LANG = "ko"     # 언어 값이 없을 때 볼 TrimPDF 의 기본 화면 언어
 
 
 @dataclasses.dataclass
@@ -36,20 +37,27 @@ class UpdateInfo:
     url_en: str | None = None   # 영어 판 툴 페이지. 서버가 주고 책갈피 사이트 주소일 때만
 
 
-def pick_url(info: UpdateInfo, lang: str) -> str:
-    """[업데이트]가 열 주소. 한국어 화면이면 url, 그 밖(영어·중국어)이면 영어 판이 있을 때만 그것.
+def is_korean(lang) -> bool:
+    """책갈피 사이트의 한국어 판(/tools/…)을 열 언어인가. 첫 부분이 ko 인 코드(ko·ko-KR·ko_KR·KO)만 그렇고,
+    그 밖의 모든 코드(en·ja·zh·zh-TW·fr·모르는 값)는 영어 판(/en/tools/…)이다. 시리즈 공통 규칙(2026-10-27).
+    언어 값이 없거나 비었으면 TrimPDF 의 기본 화면 언어(DEFAULT_LANG)를 따른다."""
+    code = lang.strip() if isinstance(lang, str) else ""
+    return (code or DEFAULT_LANG).lower().replace("_", "-").split("-")[0] == "ko"
+
+
+def pick_url(info: UpdateInfo, lang: str | None) -> str:
+    """[업데이트]가 열 주소. 한국어 화면이면 url, 그 밖이면 영어 판이 있을 때만 그것(is_korean 과 같은 규칙).
     언어는 도구 안에서만 고르고 서버에는 보내지 않는다."""
-    if lang != "ko" and isinstance(info.url_en, str) and info.url_en.startswith(SITE):
+    if not is_korean(lang) and isinstance(info.url_en, str) and info.url_en.startswith(SITE):
         return info.url_en
     return info.url
 
 
 def feedback_url(slug: str, version: str | None, lang: str | None) -> str:
     """「의견 보내기」가 여는 툴 페이지의 의견 칸 주소. 주소는 여기 상수로만 만든다(설정·서버 응답을 쓰지 않는다).
-    영어·일본어·중국어 화면이면 영어 판(/en/), 그 밖(한국어·모르는 언어)은 한국어 판.
+    한국어 화면이면 한국어 판, 그 밖의 모든 언어는 영어 판(/en/) — is_korean 참고.
     utm_source=app 이 있어야 서버 관리 화면에 「Windows 프로그램」으로 잡히고, #feedback 이 있어야 의견 칸으로 내려간다."""
-    primary = (lang or "").strip().lower().replace("_", "-").split("-")[0]
-    prefix = "en/" if primary in ("en", "ja", "zh") else ""
+    prefix = "" if is_korean(lang) else "en/"
     query = "utm_source=app&utm_medium=feedback"
     if version and version.strip():
         query += "&v=" + urllib.parse.quote(version, safe="")
