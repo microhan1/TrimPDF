@@ -51,7 +51,7 @@ color: blue
 
 ## 참고 (TrimPDF 의 실제 모습 — 시리즈 공통 규칙과 다른 점이 있다)
 - 화면은 **4개 언어(한국어·English·中文·日本語)** tkinter GUI 하나다. 일본어는 v1.0.6(2026-10-26)에 들어갔고, 언어는 오른쪽 위 드롭다운으로 고른다. **명령줄(CLI) 처리는 없고** `--version` 만 있다.
-- 배포는 PyInstaller 단일 exe(`TrimPDF.exe`) 하나를 GitHub 릴리스에 붙인다. README 는 한국어 본문 `README.md`(일본어 요약 절 포함, 영어 절은 링크 한 줄)와 영어 전체 `README.en.md` 로 나뉜다. 사용 설명서(`TrimPDF_Manual.html`, GitHub Pages)는 아직 한국어·영어·중국어 3개 언어다.
+- 배포는 PyInstaller 단일 exe(`TrimPDF.exe`) 하나를 GitHub 릴리스에 붙인다. README 는 한국어 본문 `README.md`(일본어 요약 절 포함, 영어 절은 링크 한 줄)와 영어 전체 `README.en.md` 로 나뉜다. 사용 설명서(`TrimPDF_Manual.html`, GitHub Pages)는 한국어·영어·중국어·일본어 4개 언어다(일본어 2026-11-05).
 - 버전은 `version.py` 의 `APP_VERSION`, 툴 slug 는 `UPDATE_SLUG = "trimpdf"`.
 - **시험은 저장소 밖 `regress/` 폴더에 있다**(사장님 지시로 GitHub 에 올리지 않음, `.git/info/exclude`). 전체 점검은 `python regress/run_all.py`, 사용법은 `regress/README.txt`. 운영 서버 차단은 `regress/conftest.py`·`regress/netguard.py` 가 맡고, exe 를 띄우는 점검은 죽은 프록시 환경으로 띄운다. 운영 서버에 일부러 묻는 것은 릴리스 점검 1회뿐.
 - 이 저장소에는 `docs/LESSONS*.md` 가 없다. 실수와 교훈은 사용자 메모리(`lessons-from-mistakes.md`)와 전역 규칙 `~/.claude/CLAUDE.md` 에 있다.

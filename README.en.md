@@ -30,7 +30,7 @@ A free Windows program for scanned books and wide-margin PDFs. On a tablet or an
 
 > The first time, Windows may show "Windows protected your PC". Choose **More info → Run anyway**. The program is unsigned, which is why the notice appears.
 
-Options and troubleshooting are in the [user guide](https://microhan1.github.io/TrimPDF/TrimPDF_Manual.html#en) (Korean · English · Chinese).
+Options and troubleshooting are in the [user guide](https://microhan1.github.io/TrimPDF/TrimPDF_Manual.html#en) (Korean · English · Chinese · Japanese).
 
 ### Main options
 

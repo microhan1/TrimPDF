@@ -32,7 +32,7 @@ TrimPDF는 PDF를 창에 끌어다 놓기만 하면 페이지마다 위·아래�
 
 > 처음 실행할 때 「Windows의 PC 보호」 창이 뜨면 **추가 정보 → 실행**을 누르세요. 코드 서명 인증서가 없는 개인 제작 프로그램이라 나타나는 안내입니다.
 
-옵션 설명과 문제 해결은 [사용 설명서](https://microhan1.github.io/TrimPDF/TrimPDF_Manual.html)(한국어 · English · 中文)에 정리돼 있습니다.
+옵션 설명과 문제 해결은 [사용 설명서](https://microhan1.github.io/TrimPDF/TrimPDF_Manual.html)(한국어 · English · 中文 · 日本語)에 정리돼 있습니다.
 
 ### 주요 옵션
 
@@ -112,7 +112,7 @@ TrimPDF は、PDF の各ページで実際に内容がある範囲を見つけ�
 - 進行状況バーの右にある「プレビュー…」を押すと、処理する前にページごとのトリミング範囲を赤枠で確認できます。処理中は同じ場所が「キャンセル」に変わります。処理結果の一覧でファイル名をクリックするとファイルが開き、「フォルダーを開く」で保存先を確認できます。
 - **更新を確認:** 新しいバージョンがあるかを確かめるため、ツール名とバージョンだけを Chaekgalpi のサーバー（chaekgalpi.co.kr）に送ります。ファイルは送らず、確認は 1 日 1 回までで、右上の「更新を確認」のチェックを外すとオフにできます。新しいバージョンがあるとウィンドウ下部に 1 行の案内が表示され、「アップデート」を押すと Chaekgalpi のツールページが開きます。自動でダウンロードしたり置き換えたりはしません。
 - **ご意見を送る:** 右上の「ご意見を送る」を押すか、https://chaekgalpi.co.kr/en/tools/trimpdf#feedback からログインなしで送れます（ページは英語です）。[GitHub Issues](https://github.com/microhan1/TrimPDF/issues) でも受け付けています。このボタンはブラウザーでそのページを開くだけで、ソフト自体は何も送信しません。
-- 使用説明書は韓国語・英語・中国語で用意しています: [microhan1.github.io/TrimPDF/TrimPDF_Manual.html](https://microhan1.github.io/TrimPDF/TrimPDF_Manual.html#en)
+- 使用説明書は韓国語・英語・中国語・日本語で用意しています: [microhan1.github.io/TrimPDF/TrimPDF_Manual.html](https://microhan1.github.io/TrimPDF/TrimPDF_Manual.html#ja)
 
 <img src="docs/images/screenshot_ja.png" alt="日本語表示の TrimPDF の画面" width="420">
 
