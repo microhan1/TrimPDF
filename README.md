@@ -1,5 +1,7 @@
 # TrimPDF
 
+[English](README.en.md)
+
 PDF 여백 자르기·확대 무료 프로그램 (Windows)
 Trim PDF margins and enlarge the content — free Windows app.
 
@@ -96,16 +98,7 @@ pyinstaller --noconfirm --onefile --windowed --name TrimPDF --collect-data tkint
 
 ## English
 
-TrimPDF detects the actual content area on every page of a PDF, trims the top, bottom, left and right margins, enlarges the content, and saves the result as `filename_TrimPDF.pdf` (an existing file is never overwritten; a number such as `filename_TrimPDF(2).pdf` is added instead). It is handy for reading scanned books or wide-margin documents on tablets and e-readers.
-
-- Download `TrimPDF.exe` from [Releases](https://github.com/microhan1/TrimPDF/releases/latest), run it, and drop PDF files onto the window.
-- Text stays vector (selectable and searchable); files never leave your PC (the only exception is the update check described below, which can be turned off).
-- The interface is available in Korean, English, Chinese (Simplified) and Japanese.
-- "Preview…" (right of the progress bar) shows, page by page, what will be trimmed before you process a file. While processing, the same spot becomes "Cancel". In the results list, click a file name to open it or "Show in folder" to see where it was saved.
-- **Check for updates:** to see whether a newer version exists, TrimPDF sends only the tool name and its version to the Chaekgalpi server (chaekgalpi.co.kr). Files are never sent, the check runs at most once a day, and you can turn it off with the checkbox at the top right. If a new version exists, a one-line notice appears at the bottom of the window; "Update" opens the Chaekgalpi tools page. TrimPDF never downloads or replaces itself.
-- **Feedback:** click "Send feedback" at the top right, or go to https://chaekgalpi.co.kr/en/tools/trimpdf#feedback — no sign-in needed. [GitHub Issues](https://github.com/microhan1/TrimPDF/issues) are welcome too. The button only opens that page in your browser; the app itself sends nothing.
-- User guide in Korean, English and Chinese: [microhan1.github.io/TrimPDF/TrimPDF_Manual.html](https://microhan1.github.io/TrimPDF/TrimPDF_Manual.html#en)
-- Finished the book? Log it on [Chaekgalpi Library](https://chaekgalpi.co.kr/en/tools/trimpdf?utm_source=github&utm_medium=referral&utm_campaign=tool_cta&utm_content=trimpdf), a web service for keeping track of the books you read (tools page in English; the reading-log service itself is in Korean).
+The full English README is [README.en.md](README.en.md).
 
 ## 日本語
 
