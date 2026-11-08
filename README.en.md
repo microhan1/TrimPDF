@@ -79,7 +79,7 @@ Build the exe:
 
 ```bash
 pip install pyinstaller
-pyinstaller --noconfirm --onefile --windowed --name TrimPDF --collect-data tkinterdnd2 --collect-binaries tkinterdnd2 trimpdf.py
+pyinstaller --noconfirm --onefile --windowed --name TrimPDF --splash assets/splash.png --collect-data tkinterdnd2 --collect-binaries tkinterdnd2 trimpdf.py
 ```
 
 The result is `dist/TrimPDF.exe`.

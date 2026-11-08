@@ -17,9 +17,6 @@ import tkinter.font as tkfont
 import webbrowser
 from tkinter import filedialog, messagebox, ttk
 
-import numpy as np
-import pymupdf
-
 import update_check
 from version import APP_VERSION, UPDATE_SLUG
 
@@ -28,6 +25,54 @@ try:
     HAS_DND = True
 except ImportError:
     HAS_DND = False
+
+
+class _Deferred:
+    """numpy·pymupdf 자리에 먼저 놓는 대역. 처음 속성을 읽는 순간 load_heavy() 로 진짜 모듈을 불러온다."""
+
+    def __init__(self, name):
+        self._name = name
+
+    def __getattr__(self, attr):
+        load_heavy()
+        return getattr(globals()[self._name], attr)
+
+
+np = _Deferred("np")
+pymupdf = _Deferred("pymupdf")
+_heavy_lock = threading.Lock()
+_heavy_loaded = False
+
+
+def load_heavy():
+    """numpy·pymupdf 를 불러와 전역 이름을 진짜 모듈로 바꾼다. 불러오는 데 초 단위로 걸려서 창이 뜬 뒤로 미룬다.
+    다른 스레드가 불러오는 중이면 끝날 때까지 기다린다."""
+    global np, pymupdf, _heavy_loaded
+    if _heavy_loaded:
+        return
+    with _heavy_lock:
+        if not _heavy_loaded:
+            import numpy as np
+            import pymupdf
+            _heavy_loaded = True
+
+
+def preload_heavy():
+    """창이 뜬 직후 배경 스레드에서 미리 불러 둔다. 실패해도 여기서는 넘어가고, 실제로 쓸 때 다시 시도해 오류를 보여 준다."""
+    try:
+        load_heavy()
+    except Exception:
+        pass
+
+
+def close_splash():
+    """exe 로 켤 때 보이던 시작 그림을 닫는다. 파이썬으로 바로 돌릴 때는 pyi_splash 가 없어 아무 일도 하지 않는다."""
+    try:
+        import pyi_splash
+        pyi_splash.close()
+    except Exception:
+        pass
+
 
 DETECT_DPI = 100          # 여백 판별용 렌더링 해상도
 BLOCK = 4                 # 약 1mm 크기 블록 단위로 판정해서 스캔 잡티를 무시
@@ -417,6 +462,7 @@ def process_pdf(path, fit_to_page=True, padding=5.0, threshold=235, side_ratio=0
     uniform_size      : 확대 모드에서 모든 페이지를 같은 크기로 맞춘다(세로형/가로형은 각각 대표 크기)
     """
     padding = max(0.0, float(padding))          # 음수 여백은 내용을 잘라내므로 0 으로 제한
+    load_heavy()                                # 창이 뜨자마자 파일을 받았으면 여기서 기다린다
     try:
         src = pymupdf.open(path)
     except Exception as e:
@@ -576,7 +622,7 @@ STRINGS = {
         "bad_options": "옵션 값이 올바르지 않아 기본값으로 처리합니다.",
         "err_password": "{name} · 암호가 걸린 PDF라서 처리할 수 없습니다",
         "err_open": "{name} · 파일을 열 수 없습니다 (손상됐거나 PDF가 아닙니다)",
-        "err_save": "{name} · 결과를 저장하지 못했습니다. 같은 이름의 결과 파일이 다른 프로그램에서 열려 있거나 폴더에 쓰기 권한이 없습니다",
+        "err_save": "{name} · 결과를 저장하지 못했습니다. 원본 PDF가 있는 폴더에 쓸 수 없습니다",
         "err_unknown": "{name} · 처리하는 중에 알 수 없는 오류가 났습니다 ({error})",
         "status_closing": "처리 중인 파일을 마치면 닫습니다 · 바로 닫으려면 닫기를 한 번 더 누르세요",
         "status_cancelling": "취소하는 중…",
@@ -648,7 +694,7 @@ STRINGS = {
         "bad_options": "Some option values were invalid, so the defaults were used.",
         "err_password": "{name} · Password-protected PDFs can't be processed",
         "err_open": "{name} · Can't open the file (it's damaged or not a PDF)",
-        "err_save": "{name} · Couldn't save the result. A file with the same name may be open in another program, or the folder is read-only",
+        "err_save": "{name} · Couldn't save the result. TrimPDF can't write to the original PDF's folder",
         "err_unknown": "{name} · An unexpected error occurred while processing ({error})",
         "status_closing": "Closing once the current file is done · Close again to quit now",
         "status_cancelling": "Cancelling…",
@@ -720,7 +766,7 @@ STRINGS = {
         "bad_options": "部分选项值无效，已使用默认值。",
         "err_password": "{name} · 该 PDF 设有密码，无法处理",
         "err_open": "{name} · 无法打开文件（文件已损坏或不是 PDF）",
-        "err_save": "{name} · 无法保存结果。同名文件可能正在其他程序中打开，或文件夹没有写入权限",
+        "err_save": "{name} · 无法保存结果。程序无法写入原 PDF 所在的文件夹",
         "err_unknown": "{name} · 处理时发生未知错误（{error}）",
         "status_closing": "当前文件处理完后关闭 · 再次点击关闭可立即退出",
         "status_cancelling": "正在取消…",
@@ -792,7 +838,7 @@ STRINGS = {
         "bad_options": "オプションの値が正しくないため、既定値で処理します。",
         "err_password": "{name} · パスワードで保護された PDF のため処理できません",
         "err_open": "{name} · ファイルを開けません（破損しているか、PDF ではありません）",
-        "err_save": "{name} · 結果を保存できませんでした。同じ名前の結果ファイルが別のプログラムで開かれているか、フォルダーへの書き込み権限がありません",
+        "err_save": "{name} · 結果を保存できませんでした。元の PDF と同じフォルダーに書き込めません",
         "err_unknown": "{name} · 処理中に予期しないエラーが発生しました（{error}）",
         "status_closing": "処理中のファイルが終わったら閉じます · もう一度閉じるとすぐに終了します",
         "status_cancelling": "キャンセルしています…",
@@ -1727,11 +1773,17 @@ class App:
 
 def main():
     if sys.argv[1:] == ["--version"]:
+        close_splash()
         print(f"TrimPDF {APP_VERSION}")
         return
     enable_dpi_awareness()
-    root = TkinterDnD.Tk() if HAS_DND else tk.Tk()
-    App(root, initial_files=sys.argv[1:])
+    try:
+        root = TkinterDnD.Tk() if HAS_DND else tk.Tk()
+        App(root, initial_files=sys.argv[1:])
+        root.update()               # 창을 다 그린 뒤에 시작 그림을 닫는다
+    finally:
+        close_splash()              # 창을 만들다 실패해도 오류 안내가 시작 그림에 가리지 않게 닫는다
+    threading.Thread(target=preload_heavy, daemon=True).start()
     root.mainloop()
 
 

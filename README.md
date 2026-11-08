@@ -81,7 +81,7 @@ python trimpdf.py
 
 ```bash
 pip install pyinstaller
-pyinstaller --noconfirm --onefile --windowed --name TrimPDF --collect-data tkinterdnd2 --collect-binaries tkinterdnd2 trimpdf.py
+pyinstaller --noconfirm --onefile --windowed --name TrimPDF --splash assets/splash.png --collect-data tkinterdnd2 --collect-binaries tkinterdnd2 trimpdf.py
 ```
 
 결과는 `dist/TrimPDF.exe`에 만들어집니다.
